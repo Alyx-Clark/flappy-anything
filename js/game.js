@@ -4,6 +4,7 @@ import { PipePair } from './pipe.js';
 import { Renderer } from './renderer.js';
 import { saveScore, getHighScore } from './storage.js';
 import { AudioManager } from './audio.js';
+import * as leaderboard from './leaderboard.js';
 
 const PIPE_SPEED = 150;
 const PIPE_SPACING = 200;
@@ -33,6 +34,34 @@ export class Game {
 
     this.groundOffset = 0;
     this.lastTime = 0;
+
+    // Leaderboard
+    this.leaderboardScores = [];
+    this.pendingScore = 0;
+
+    // Name entry overlay
+    this.nameOverlay = document.getElementById('name-overlay');
+    this.nameInput = document.getElementById('name-input');
+    this.nameSubmit = document.getElementById('name-submit');
+    this.setupNameEntry();
+  }
+
+  setupNameEntry() {
+    const submit = () => {
+      const name = this.nameInput.value.trim();
+      if (!name) return;
+      leaderboard.setPlayerName(name);
+      this.nameOverlay.classList.add('hidden');
+      this.nameInput.value = '';
+      leaderboard.submitScore(this.pendingScore);
+      this.state = 'GAME_OVER';
+    };
+
+    this.nameSubmit.addEventListener('click', submit);
+    this.nameInput.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') submit();
+    });
   }
 
   start() {
@@ -66,6 +95,13 @@ export class Game {
       case 'GAME_OVER':
         this.updateGameOver();
         break;
+      case 'ENTER_NAME':
+        this.input.consumeClick();
+        this.input.consumeFlap();
+        break;
+      case 'LEADERBOARD':
+        this.updateLeaderboard(dt);
+        break;
     }
   }
 
@@ -74,6 +110,12 @@ export class Game {
     const btn = this.renderer.getMuteButtonBounds();
     return click.x >= btn.x && click.x <= btn.x + btn.w &&
            click.y >= btn.y && click.y <= btn.y + btn.h;
+  }
+
+  checkButtonClick(click, bounds) {
+    if (!click) return false;
+    return click.x >= bounds.x && click.x <= bounds.x + bounds.w &&
+           click.y >= bounds.y && click.y <= bounds.y + bounds.h;
   }
 
   updateMenu(dt) {
@@ -85,6 +127,13 @@ export class Game {
 
     if (this.checkMuteClick(click)) {
       this.audio.toggleMute();
+      return;
+    }
+
+    // Leaderboard button
+    if (this.checkButtonClick(click, this.renderer.getLeaderboardButtonBounds())) {
+      this.audio.play('click');
+      this.openLeaderboard();
       return;
     }
 
@@ -103,6 +152,29 @@ export class Game {
         this.selectTheme(THEME_ORDER[i]);
         return;
       }
+    }
+  }
+
+  async openLeaderboard() {
+    this.leaderboardScores = await leaderboard.fetchTopScores(10);
+    this.state = 'LEADERBOARD';
+  }
+
+  updateLeaderboard(dt) {
+    this.groundOffset = (this.groundOffset + PIPE_SPEED * 0.3 * dt);
+
+    const click = this.input.consumeClick();
+    this.input.consumeFlap();
+    if (!click) return;
+
+    if (this.checkMuteClick(click)) {
+      this.audio.toggleMute();
+      return;
+    }
+
+    if (this.checkButtonClick(click, this.renderer.getLeaderboardBackButtonBounds())) {
+      this.audio.play('click');
+      this.state = 'MENU';
     }
   }
 
@@ -229,13 +301,24 @@ export class Game {
   }
 
   gameOver() {
-    this.state = 'GAME_OVER';
     this.audio.play('crash');
     if (this.score > this.highScore) {
       this.highScore = this.score;
       this.isNewHighScore = true;
     }
     saveScore(this.theme.id, this.score);
+
+    if (!leaderboard.hasPlayerName()) {
+      // First time — prompt for name
+      this.pendingScore = this.score;
+      this.state = 'ENTER_NAME';
+      this.nameOverlay.classList.remove('hidden');
+      this.nameInput.focus();
+    } else {
+      // Returning player — auto-submit
+      this.state = 'GAME_OVER';
+      leaderboard.submitScore(this.score);
+    }
   }
 
   updateGameOver() {
@@ -289,6 +372,12 @@ export class Game {
       case 'GAME_OVER':
         this.renderGameOver(ctx);
         break;
+      case 'ENTER_NAME':
+        this.renderGameOver(ctx);
+        break;
+      case 'LEADERBOARD':
+        this.renderLeaderboard(ctx);
+        break;
     }
   }
 
@@ -336,6 +425,14 @@ export class Game {
     this.bird.draw(ctx, this.theme);
 
     this.renderer.drawGameOver(ctx, this.theme, this.score, this.highScore, this.isNewHighScore);
+    this.renderer.drawMuteButton(ctx, this.audio.isMuted());
+  }
+
+  renderLeaderboard(ctx) {
+    this.renderer.drawBackground(ctx, this.theme);
+    this.renderer.drawParticles(ctx, this.theme);
+    this.renderer.drawGround(ctx, this.theme, this.groundOffset);
+    this.renderer.drawLeaderboard(ctx, this.theme, this.leaderboardScores, leaderboard.getCurrentPlayerId());
     this.renderer.drawMuteButton(ctx, this.audio.isMuted());
   }
 }

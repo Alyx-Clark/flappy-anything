@@ -1,5 +1,19 @@
 import { Game } from './game.js';
 import { InputHandler } from './input.js';
+import { init as initLeaderboard } from './leaderboard.js';
+
+// TODO: Replace with your Firebase project config
+const firebaseConfig = {
+  apiKey: "AIzaSyAIMw5GMh44u9BkHs5j4CTH0mhfvmcwyjw",
+  authDomain: "flappy-anything.firebaseapp.com",
+  projectId: "flappy-anything",
+  storageBucket: "flappy-anything.firebasestorage.app",
+  messagingSenderId: "472537046550",
+  appId: "1:472537046550:web:e1c9773a24ac7e6f0bdf37",
+  measurementId: "G-WD71JLLYC5"
+};
+
+initLeaderboard(firebaseConfig);
 
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');

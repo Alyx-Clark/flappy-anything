@@ -219,6 +219,28 @@ export class Renderer {
       const y = startY + i * (cardHeight + gap);
       this.drawThemeCard(ctx, theme, startX, y, cardWidth, cardHeight);
     }
+
+    // Leaderboard button
+    const lb = this.getLeaderboardButtonBounds();
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.beginPath();
+    ctx.roundRect(lb.x, lb.y, lb.w, lb.h, 8);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.font = 'bold 15px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#FFF';
+    ctx.fillText('Leaderboard', lb.x + lb.w / 2, lb.y + lb.h / 2);
+    ctx.restore();
+  }
+
+  getLeaderboardButtonBounds() {
+    const w = 180;
+    return { x: (this.width - w) / 2, y: 508, w: w, h: 32 };
   }
 
   drawThemeCard(ctx, theme, x, y, w, h) {
@@ -395,7 +417,116 @@ export class Renderer {
     ctx.restore();
   }
 
-  // --- Game Over ---
+  // --- Leaderboard Screen ---
+
+  getLeaderboardBackButtonBounds() {
+    const w = 120;
+    return { x: (this.width - w) / 2, y: 520, w: w, h: 36 };
+  }
+
+  drawLeaderboard(ctx, theme, scores, currentPlayerId) {
+    // Dark overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.fillRect(0, 0, this.width, this.height);
+
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Title
+    ctx.font = 'bold 28px Arial, sans-serif';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 4;
+    ctx.lineJoin = 'round';
+    ctx.strokeText('LEADERBOARD', this.width / 2, 50);
+    ctx.fillStyle = '#FFF';
+    ctx.fillText('LEADERBOARD', this.width / 2, 50);
+
+    // Score list panel
+    const panelW = 340;
+    const panelH = 420;
+    const panelX = (this.width - panelW) / 2;
+    const panelY = 80;
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.beginPath();
+    ctx.roundRect(panelX, panelY, panelW, panelH, 12);
+    ctx.fill();
+
+    // Column headers
+    ctx.font = 'bold 13px Arial, sans-serif';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.textAlign = 'left';
+    ctx.fillText('#', panelX + 16, panelY + 22);
+    ctx.fillText('Name', panelX + 45, panelY + 22);
+    ctx.textAlign = 'right';
+    ctx.fillText('Score', panelX + panelW - 16, panelY + 22);
+
+    // Divider
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(panelX + 12, panelY + 38);
+    ctx.lineTo(panelX + panelW - 12, panelY + 38);
+    ctx.stroke();
+
+    // Scores
+    const rowH = 36;
+    const startRowY = panelY + 55;
+
+    if (scores.length === 0) {
+      ctx.textAlign = 'center';
+      ctx.font = '15px Arial, sans-serif';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.fillText('No scores yet!', this.width / 2, startRowY + 60);
+    }
+
+    for (let i = 0; i < scores.length; i++) {
+      const entry = scores[i];
+      const rowY = startRowY + i * rowH;
+      const isMe = entry.id === currentPlayerId;
+
+      if (isMe) {
+        ctx.fillStyle = 'rgba(243, 156, 18, 0.15)';
+        ctx.beginPath();
+        ctx.roundRect(panelX + 6, rowY - rowH / 2 + 2, panelW - 12, rowH - 4, 6);
+        ctx.fill();
+      }
+
+      // Rank
+      ctx.textAlign = 'left';
+      ctx.font = 'bold 15px Arial, sans-serif';
+      ctx.fillStyle = i < 3 ? '#F39C12' : 'rgba(255, 255, 255, 0.7)';
+      ctx.fillText(`${i + 1}`, panelX + 16, rowY);
+
+      // Name
+      ctx.font = isMe ? 'bold 15px Arial, sans-serif' : '15px Arial, sans-serif';
+      ctx.fillStyle = isMe ? '#F39C12' : '#FFF';
+      ctx.fillText(entry.name, panelX + 45, rowY);
+
+      // Score
+      ctx.textAlign = 'right';
+      ctx.font = 'bold 15px Arial, sans-serif';
+      ctx.fillStyle = isMe ? '#F39C12' : '#FFF';
+      ctx.fillText(entry.score, panelX + panelW - 16, rowY);
+    }
+
+    // Back button
+    const btn = this.getLeaderboardBackButtonBounds();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.beginPath();
+    ctx.roundRect(btn.x, btn.y, btn.w, btn.h, 10);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 16px Arial, sans-serif';
+    ctx.fillStyle = '#FFF';
+    ctx.fillText('Back', btn.x + btn.w / 2, btn.y + btn.h / 2);
+
+    ctx.restore();
+  }
 
   // --- Mute Button ---
 

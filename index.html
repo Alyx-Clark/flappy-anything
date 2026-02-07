@@ -7,7 +7,20 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <canvas id="game-canvas" width="400" height="600"></canvas>
+  <div id="game-wrapper">
+    <canvas id="game-canvas" width="400" height="600"></canvas>
+
+    <div id="name-overlay" class="hidden">
+      <div id="name-card">
+        <p>Enter your name for the leaderboard</p>
+        <input type="text" id="name-input" maxlength="12" placeholder="Your name" autocomplete="off">
+        <button id="name-submit">Submit</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>
