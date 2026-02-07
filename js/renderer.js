@@ -1,0 +1,542 @@
+import { getHighScore } from './storage.js';
+
+export class Renderer {
+  constructor(width, height) {
+    this.width = width;
+    this.height = height;
+    this.particles = [];
+    this.clouds = [];
+    this.initClouds();
+  }
+
+  // --- Particles ---
+
+  initClouds() {
+    this.clouds = [];
+    for (let i = 0; i < 5; i++) {
+      this.clouds.push({
+        x: Math.random() * this.width * 1.5,
+        y: 40 + Math.random() * 150,
+        w: 60 + Math.random() * 60,
+        h: 25 + Math.random() * 15,
+        speed: 10 + Math.random() * 15,
+      });
+    }
+  }
+
+  initParticles(theme) {
+    this.particles = [];
+    if (!theme.particles.enabled) return;
+
+    const count = theme.particles.count;
+    for (let i = 0; i < count; i++) {
+      this.particles.push(this.createParticle(theme, true));
+    }
+  }
+
+  createParticle(theme, randomY) {
+    if (theme.particles.type === 'snow') {
+      return {
+        x: Math.random() * this.width,
+        y: randomY ? Math.random() * this.height : -5,
+        speed: 30 + Math.random() * 40,
+        drift: (Math.random() - 0.5) * 20,
+        size: 1.5 + Math.random() * 2.5,
+        alpha: 0.4 + Math.random() * 0.6,
+      };
+    } else {
+      // Stars
+      return {
+        x: Math.random() * this.width,
+        y: Math.random() * (this.height - 80),
+        size: 0.5 + Math.random() * 2,
+        alpha: Math.random(),
+        twinkleSpeed: 1 + Math.random() * 3,
+        twinkleOffset: Math.random() * Math.PI * 2,
+      };
+    }
+  }
+
+  updateParticles(dt, theme) {
+    // Update clouds
+    for (const c of this.clouds) {
+      c.x -= c.speed * dt;
+      if (c.x + c.w < 0) {
+        c.x = this.width + 20;
+        c.y = 40 + Math.random() * 150;
+      }
+    }
+
+    if (!theme.particles.enabled) return;
+
+    if (theme.particles.type === 'snow') {
+      for (const p of this.particles) {
+        p.y += p.speed * dt;
+        p.x += p.drift * dt;
+        if (p.y > this.height) {
+          p.y = -5;
+          p.x = Math.random() * this.width;
+        }
+        if (p.x < 0) p.x = this.width;
+        if (p.x > this.width) p.x = 0;
+      }
+    } else {
+      // Stars just twinkle — alpha varies with time
+      for (const p of this.particles) {
+        p.alpha = 0.3 + 0.7 * Math.abs(Math.sin(performance.now() * 0.001 * p.twinkleSpeed + p.twinkleOffset));
+      }
+    }
+  }
+
+  drawParticles(ctx, theme) {
+    if (!theme.particles.enabled) return;
+
+    for (const p of this.particles) {
+      ctx.globalAlpha = p.alpha;
+      ctx.fillStyle = theme.particles.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // --- Background ---
+
+  drawBackground(ctx, theme) {
+    const bg = theme.background;
+    const grad = ctx.createLinearGradient(0, 0, 0, this.height);
+    grad.addColorStop(0, bg.skyGradient[0]);
+    grad.addColorStop(1, bg.skyGradient[1]);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, this.width, this.height);
+
+    if (bg.hasClouds) {
+      this.drawClouds(ctx, bg.cloudColor);
+    }
+  }
+
+  drawClouds(ctx, color) {
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.7;
+    for (const c of this.clouds) {
+      ctx.beginPath();
+      ctx.ellipse(c.x, c.y, c.w / 2, c.h / 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(c.x - c.w * 0.25, c.y + 5, c.w * 0.3, c.h * 0.4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(c.x + c.w * 0.25, c.y + 3, c.w * 0.35, c.h * 0.45, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // --- Ground ---
+
+  drawGround(ctx, theme, offset) {
+    const bg = theme.background;
+    const groundY = this.height - bg.groundHeight;
+
+    // Grass/accent strip
+    ctx.fillStyle = bg.groundAccent;
+    ctx.fillRect(0, groundY, this.width, 15);
+
+    // Ground body
+    ctx.fillStyle = bg.groundColor;
+    ctx.fillRect(0, groundY + 15, this.width, bg.groundHeight - 15);
+
+    // Ground texture lines
+    ctx.strokeStyle = bg.groundAccent;
+    ctx.globalAlpha = 0.3;
+    ctx.lineWidth = 1;
+    const patternW = 30;
+    const off = offset % patternW;
+    for (let x = -off; x < this.width + patternW; x += patternW) {
+      ctx.beginPath();
+      ctx.moveTo(x, groundY + 20);
+      ctx.lineTo(x + 15, groundY + bg.groundHeight);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // --- Score ---
+
+  drawScore(ctx, theme, score) {
+    ctx.save();
+    ctx.font = 'bold 48px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+
+    ctx.strokeStyle = theme.ui.scoreStroke;
+    ctx.lineWidth = 6;
+    ctx.lineJoin = 'round';
+    ctx.strokeText(score, this.width / 2, 30);
+
+    ctx.fillStyle = theme.ui.scoreColor;
+    ctx.fillText(score, this.width / 2, 30);
+    ctx.restore();
+  }
+
+  // --- Menu ---
+
+  drawMenu(ctx, activeTheme, allThemes, themeOrder) {
+    // Title
+    ctx.save();
+    ctx.font = 'bold 36px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 5;
+    ctx.lineJoin = 'round';
+    ctx.strokeText('FLAPPY ANYTHING', this.width / 2, 55);
+
+    ctx.fillStyle = '#FFF';
+    ctx.fillText('FLAPPY ANYTHING', this.width / 2, 55);
+
+    // Subtitle
+    ctx.font = '16px Arial, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 3;
+    ctx.strokeText('Choose your adventure', this.width / 2, 95);
+    ctx.fillText('Choose your adventure', this.width / 2, 95);
+    ctx.restore();
+
+    // Theme cards
+    const cardWidth = 300;
+    const cardHeight = 100;
+    const startX = (this.width - cardWidth) / 2;
+    const startY = 160;
+    const gap = 20;
+
+    for (let i = 0; i < themeOrder.length; i++) {
+      const themeId = themeOrder[i];
+      const theme = allThemes[themeId];
+      const y = startY + i * (cardHeight + gap);
+      this.drawThemeCard(ctx, theme, startX, y, cardWidth, cardHeight);
+    }
+  }
+
+  drawThemeCard(ctx, theme, x, y, w, h) {
+    // Card background with theme gradient
+    ctx.save();
+    const grad = ctx.createLinearGradient(x, y, x + w, y);
+    grad.addColorStop(0, theme.background.skyGradient[0]);
+    grad.addColorStop(1, theme.background.skyGradient[1]);
+
+    // Rounded rect
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 12);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Border
+    ctx.strokeStyle = theme.ui.menuHighlight;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // Mini ground preview
+    ctx.fillStyle = theme.background.groundAccent;
+    ctx.beginPath();
+    ctx.roundRect(x, y + h - 18, w, 18, [0, 0, 12, 12]);
+    ctx.fill();
+
+    // Theme name
+    ctx.font = 'bold 22px Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#FFF';
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 3;
+    ctx.lineJoin = 'round';
+    ctx.strokeText(theme.name, x + 70, y + 28);
+    ctx.fillText(theme.name, x + 70, y + 28);
+
+    // Description
+    ctx.font = '13px Arial, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 2;
+    ctx.strokeText(theme.description, x + 70, y + 50);
+    ctx.fillText(theme.description, x + 70, y + 50);
+
+    // High score
+    const hs = getHighScore(theme.id);
+    ctx.font = 'bold 14px Arial, sans-serif';
+    ctx.fillStyle = theme.ui.menuHighlight;
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.lineWidth = 2;
+    ctx.strokeText(`Best: ${hs}`, x + 70, y + 72);
+    ctx.fillText(`Best: ${hs}`, x + 70, y + 72);
+
+    // Mini character preview
+    this.drawMiniCharacter(ctx, theme, x + 35, y + 40);
+
+    ctx.restore();
+  }
+
+  drawMiniCharacter(ctx, theme, cx, cy) {
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    switch (theme.player.type) {
+      case 'bird':
+        ctx.fillStyle = theme.player.bodyColor;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 12, 9, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = theme.player.wingColor;
+        ctx.beginPath();
+        ctx.ellipse(-2, 2, 7, 4, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#FFF';
+        ctx.beginPath();
+        ctx.arc(6, -3, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(7, -3, 1.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = theme.player.beakColor;
+        ctx.beginPath();
+        ctx.moveTo(10, 0);
+        ctx.lineTo(16, 2);
+        ctx.lineTo(10, 4);
+        ctx.closePath();
+        ctx.fill();
+        break;
+
+      case 'penguin':
+        ctx.fillStyle = theme.player.bodyColor;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 10, 13, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = theme.player.bellyColor;
+        ctx.beginPath();
+        ctx.ellipse(1, 1, 6, 9, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#FFF';
+        ctx.beginPath();
+        ctx.arc(5, -5, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(6, -5, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = theme.player.beakColor;
+        ctx.beginPath();
+        ctx.moveTo(8, -2);
+        ctx.lineTo(14, 0);
+        ctx.lineTo(8, 2);
+        ctx.closePath();
+        ctx.fill();
+        break;
+
+      case 'rocket':
+        ctx.fillStyle = theme.player.bodyColor;
+        ctx.beginPath();
+        ctx.roundRect(-9, -6, 18, 12, 2);
+        ctx.fill();
+        ctx.fillStyle = theme.player.noseColor;
+        ctx.beginPath();
+        ctx.moveTo(9, -6);
+        ctx.lineTo(15, 0);
+        ctx.lineTo(9, 6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = theme.player.windowColor;
+        ctx.beginPath();
+        ctx.arc(3, 0, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = theme.player.flameColor;
+        ctx.beginPath();
+        ctx.moveTo(-9, -3);
+        ctx.lineTo(-15, 0);
+        ctx.lineTo(-9, 3);
+        ctx.closePath();
+        ctx.fill();
+        break;
+    }
+
+    ctx.restore();
+  }
+
+  // --- Ready Screen ---
+
+  drawReady(ctx, theme) {
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // "Get Ready!" title
+    ctx.font = 'bold 36px Arial, sans-serif';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 5;
+    ctx.lineJoin = 'round';
+    ctx.strokeText('Get Ready!', this.width / 2, this.height / 2 - 80);
+    ctx.fillStyle = theme.ui.scoreColor;
+    ctx.fillText('Get Ready!', this.width / 2, this.height / 2 - 80);
+
+    // Pulsing prompt
+    const alpha = 0.5 + 0.5 * Math.sin(performance.now() * 0.004);
+    ctx.globalAlpha = alpha;
+    ctx.font = '20px Arial, sans-serif';
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 3;
+    ctx.strokeText('Tap, Click, or Press Space', this.width / 2, this.height / 2 + 80);
+    ctx.fillStyle = '#FFF';
+    ctx.fillText('Tap, Click, or Press Space', this.width / 2, this.height / 2 + 80);
+    ctx.globalAlpha = 1;
+
+    ctx.restore();
+  }
+
+  // --- Game Over ---
+
+  // --- Mute Button ---
+
+  getMuteButtonBounds() {
+    return { x: 10, y: 10, w: 28, h: 28 };
+  }
+
+  drawMuteButton(ctx, isMuted) {
+    const { x, y, w, h } = this.getMuteButtonBounds();
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+
+    ctx.save();
+
+    // Button background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 6);
+    ctx.fill();
+
+    // Speaker body (centered in button)
+    ctx.fillStyle = '#FFF';
+    ctx.beginPath();
+    ctx.moveTo(cx - 6, cy - 3);
+    ctx.lineTo(cx - 3, cy - 3);
+    ctx.lineTo(cx + 1, cy - 6);
+    ctx.lineTo(cx + 1, cy + 6);
+    ctx.lineTo(cx - 3, cy + 3);
+    ctx.lineTo(cx - 6, cy + 3);
+    ctx.closePath();
+    ctx.fill();
+
+    if (isMuted) {
+      // X mark
+      ctx.strokeStyle = '#FFF';
+      ctx.lineWidth = 1.5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(cx + 4, cy - 4);
+      ctx.lineTo(cx + 10, cy + 4);
+      ctx.moveTo(cx + 10, cy - 4);
+      ctx.lineTo(cx + 4, cy + 4);
+      ctx.stroke();
+    } else {
+      // Sound waves
+      ctx.strokeStyle = '#FFF';
+      ctx.lineWidth = 1.2;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(cx + 3, cy, 3, -Math.PI / 4, Math.PI / 4);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx + 3, cy, 6.5, -Math.PI / 4, Math.PI / 4);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  // --- Game Over ---
+
+  drawGameOver(ctx, theme, score, highScore, isNew) {
+    // Dark overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.fillRect(0, 0, this.width, this.height);
+
+    // Score panel
+    const panelW = 260;
+    const panelH = 200;
+    const panelX = (this.width - panelW) / 2;
+    const panelY = (this.height - panelH) / 2 - 30;
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.beginPath();
+    ctx.roundRect(panelX, panelY, panelW, panelH, 16);
+    ctx.fill();
+
+    ctx.strokeStyle = theme.ui.menuHighlight;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // "GAME OVER" text
+    ctx.save();
+    ctx.font = 'bold 32px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 5;
+    ctx.lineJoin = 'round';
+    ctx.strokeText('GAME OVER', this.width / 2, panelY + 40);
+
+    ctx.fillStyle = theme.ui.scoreColor;
+    ctx.fillText('GAME OVER', this.width / 2, panelY + 40);
+
+    // Score
+    ctx.font = 'bold 20px Arial, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillText('Score', this.width / 2, panelY + 80);
+
+    ctx.font = 'bold 40px Arial, sans-serif';
+    ctx.fillStyle = '#FFF';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 4;
+    ctx.strokeText(score, this.width / 2, panelY + 115);
+    ctx.fillText(score, this.width / 2, panelY + 115);
+
+    // High score
+    ctx.font = 'bold 16px Arial, sans-serif';
+    ctx.fillStyle = theme.ui.menuHighlight;
+    let hsText = `Best: ${highScore}`;
+    if (isNew) hsText += '  NEW!';
+    ctx.fillText(hsText, this.width / 2, panelY + 155);
+
+    // Tap to play again
+    const alpha = 0.5 + 0.5 * Math.sin(performance.now() * 0.004);
+    ctx.globalAlpha = alpha;
+    ctx.font = '18px Arial, sans-serif';
+    ctx.fillStyle = '#FFF';
+    ctx.fillText('Tap to play again', this.width / 2, panelY + panelH + 30);
+    ctx.globalAlpha = 1;
+
+    // Menu button
+    const btnW = 160;
+    const btnH = 44;
+    const btnX = (this.width - btnW) / 2;
+    const btnY = this.height / 2 + 130;
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.beginPath();
+    ctx.roundRect(btnX, btnY, btnW, btnH, 10);
+    ctx.fill();
+
+    ctx.strokeStyle = theme.ui.menuHighlight;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.font = 'bold 18px Arial, sans-serif';
+    ctx.fillStyle = '#FFF';
+    ctx.fillText('Menu', this.width / 2, btnY + btnH / 2);
+
+    ctx.restore();
+  }
+}
