@@ -417,6 +417,28 @@ export class Renderer {
     ctx.restore();
   }
 
+  drawCrown(ctx, cx, cy, color) {
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    // Base
+    ctx.moveTo(cx - 6, cy + 3);
+    ctx.lineTo(cx + 6, cy + 3);
+    ctx.lineTo(cx + 5, cy - 1);
+    // Right point
+    ctx.lineTo(cx + 6, cy - 5);
+    ctx.lineTo(cx + 3, cy - 2);
+    // Center point
+    ctx.lineTo(cx, cy - 6);
+    ctx.lineTo(cx - 3, cy - 2);
+    // Left point
+    ctx.lineTo(cx - 6, cy - 5);
+    ctx.lineTo(cx - 5, cy - 1);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
   // --- Leaderboard Screen ---
 
   getLeaderboardBackButtonBounds() {
@@ -499,10 +521,17 @@ export class Renderer {
       ctx.fillStyle = i < 3 ? '#F39C12' : 'rgba(255, 255, 255, 0.7)';
       ctx.fillText(`${i + 1}`, panelX + 16, rowY);
 
-      // Name
+      // Crown for top 3
+      if (i < 3) {
+        const crownColors = ['#FFD700', '#C0C0C0', '#CD7F32'];
+        this.drawCrown(ctx, panelX + 36, rowY, crownColors[i]);
+      }
+
+      // Name (shifted right to make room for crown)
+      const nameX = panelX + (i < 3 ? 50 : 45);
       ctx.font = isMe ? 'bold 15px Arial, sans-serif' : '15px Arial, sans-serif';
       ctx.fillStyle = isMe ? '#F39C12' : '#FFF';
-      ctx.fillText(entry.name, panelX + 45, rowY);
+      ctx.fillText(entry.name, nameX, rowY);
 
       // Score
       ctx.textAlign = 'right';
