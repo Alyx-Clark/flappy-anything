@@ -446,7 +446,7 @@ export class Renderer {
     return { x: (this.width - w) / 2, y: 520, w: w, h: 36 };
   }
 
-  drawLeaderboard(ctx, theme, scores, currentPlayerId) {
+  drawLeaderboard(ctx, theme, scores, currentPlayerId, scrollOffset = 0) {
     // Dark overlay
     ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
     ctx.fillRect(0, 0, this.width, this.height);
@@ -475,7 +475,7 @@ export class Renderer {
     ctx.roundRect(panelX, panelY, panelW, panelH, 12);
     ctx.fill();
 
-    // Column headers
+    // Column headers (above clip region)
     ctx.font = 'bold 13px Arial, sans-serif';
     ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.textAlign = 'left';
@@ -492,9 +492,16 @@ export class Renderer {
     ctx.lineTo(panelX + panelW - 12, panelY + 38);
     ctx.stroke();
 
-    // Scores
+    // Scrollable area
     const rowH = 36;
-    const startRowY = panelY + 55;
+    const clipTop = panelY + 40;
+    const clipH = panelH - 42;
+    const startRowY = clipTop + 15;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(panelX, clipTop, panelW, clipH);
+    ctx.clip();
 
     if (scores.length === 0) {
       ctx.textAlign = 'center';
@@ -505,7 +512,11 @@ export class Renderer {
 
     for (let i = 0; i < scores.length; i++) {
       const entry = scores[i];
-      const rowY = startRowY + i * rowH;
+      const rowY = startRowY + i * rowH - scrollOffset;
+
+      // Skip rows outside visible area
+      if (rowY < clipTop - rowH || rowY > clipTop + clipH + rowH) continue;
+
       const isMe = entry.id === currentPlayerId;
 
       if (isMe) {
@@ -538,6 +549,24 @@ export class Renderer {
       ctx.font = 'bold 15px Arial, sans-serif';
       ctx.fillStyle = isMe ? '#F39C12' : '#FFF';
       ctx.fillText(entry.score, panelX + panelW - 16, rowY);
+    }
+
+    ctx.restore(); // End clip
+
+    // Scrollbar indicator
+    if (scores.length > 11) {
+      const totalContentH = scores.length * rowH;
+      const maxScroll = totalContentH - clipH + 15;
+      const trackTop = clipTop + 4;
+      const trackBottom = panelY + panelH - 14;
+      const trackH = trackBottom - trackTop;
+      const barH = Math.max(30, trackH * (clipH / totalContentH));
+      const barY = trackTop + (trackH - barH) * (scrollOffset / maxScroll);
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.beginPath();
+      ctx.roundRect(panelX + panelW - 8, barY, 4, barH, 2);
+      ctx.fill();
     }
 
     // Back button

@@ -92,7 +92,7 @@ export async function submitScore(score) {
   }
 }
 
-export async function fetchTopScores(limit = 10) {
+export async function fetchTopScores(limit = 50) {
   if (!db) return [];
   const snapshot = await db.ref('leaderboard')
     .orderByChild('score')

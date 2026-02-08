@@ -37,6 +37,7 @@ export class Game {
 
     // Leaderboard
     this.leaderboardScores = [];
+    this.leaderboardScroll = 0;
     this.pendingScore = 0;
 
     // Name entry overlay
@@ -156,12 +157,23 @@ export class Game {
   }
 
   async openLeaderboard() {
-    this.leaderboardScores = await leaderboard.fetchTopScores(10);
+    this.leaderboardScores = await leaderboard.fetchTopScores(50);
+    this.leaderboardScroll = 0;
     this.state = 'LEADERBOARD';
   }
 
   updateLeaderboard(dt) {
     this.groundOffset = (this.groundOffset + PIPE_SPEED * 0.3 * dt);
+
+    // Scroll
+    const scrollDelta = this.input.consumeScroll();
+    if (scrollDelta) {
+      const rowH = 36;
+      const clipH = 378; // panelH(420) - 42
+      const totalContentH = this.leaderboardScores.length * rowH;
+      const maxScroll = Math.max(0, totalContentH - clipH + 15);
+      this.leaderboardScroll = Math.max(0, Math.min(maxScroll, this.leaderboardScroll + scrollDelta));
+    }
 
     const click = this.input.consumeClick();
     this.input.consumeFlap();
@@ -432,7 +444,7 @@ export class Game {
     this.renderer.drawBackground(ctx, this.theme);
     this.renderer.drawParticles(ctx, this.theme);
     this.renderer.drawGround(ctx, this.theme, this.groundOffset);
-    this.renderer.drawLeaderboard(ctx, this.theme, this.leaderboardScores, leaderboard.getCurrentPlayerId());
+    this.renderer.drawLeaderboard(ctx, this.theme, this.leaderboardScores, leaderboard.getCurrentPlayerId(), this.leaderboardScroll);
     this.renderer.drawMuteButton(ctx, this.audio.isMuted());
   }
 }

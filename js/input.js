@@ -2,6 +2,8 @@ export class InputHandler {
   constructor(canvas) {
     this.flapRequested = false;
     this.clickPosition = null;
+    this.scrollDelta = 0;
+    this.touchStartY = null;
     this.canvas = canvas;
 
     window.addEventListener('keydown', (e) => {
@@ -20,6 +22,26 @@ export class InputHandler {
       e.preventDefault();
       this.flapRequested = true;
       this.clickPosition = this.getCanvasPosition(e.touches[0]);
+      this.touchStartY = e.touches[0].clientY;
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      if (this.touchStartY !== null) {
+        const dy = this.touchStartY - e.touches[0].clientY;
+        const scaleY = this.canvas.height / this.canvas.getBoundingClientRect().height;
+        this.scrollDelta += dy * scaleY;
+        this.touchStartY = e.touches[0].clientY;
+      }
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', () => {
+      this.touchStartY = null;
+    });
+
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      this.scrollDelta += e.deltaY;
     }, { passive: false });
   }
 
@@ -33,6 +55,12 @@ export class InputHandler {
     const pos = this.clickPosition;
     this.clickPosition = null;
     return pos;
+  }
+
+  consumeScroll() {
+    const delta = this.scrollDelta;
+    this.scrollDelta = 0;
+    return delta;
   }
 
   getCanvasPosition(event) {
