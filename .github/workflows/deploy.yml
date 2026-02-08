@@ -7,11 +7,14 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to cPanel
-        uses: pinkasey/cpanel-deploy-action@v1.2.3
-        with:
-          hostname: ${{ secrets.CPANEL_HOST }}
-          repository_root: '/home/owlexdev/public_html/flappyanything'
-          branch: master
-          cpanel_token: ${{ secrets.CPANEL_TOKEN }}
-          cpanel_username: 'owlexdev'
+      - name: Pull latest on cPanel
+        run: |
+          RESPONSE=$(curl -s \
+            -H "Authorization: cpanel owlexdev:${{ secrets.CPANEL_TOKEN }}" \
+            "https://${{ secrets.CPANEL_HOST }}:2083/execute/VersionControl/update?repository_root=%2Fhome%2Fowlexdev%2Fpublic_html%2Fflappyanything&branch=master")
+          echo "$RESPONSE"
+          STATUS=$(echo "$RESPONSE" | jq -r '.status')
+          if [ "$STATUS" != "1" ]; then
+            echo "::error::cPanel update failed"
+            exit 1
+          fi
