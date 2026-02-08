@@ -166,10 +166,10 @@ export class Game {
     }
 
     const cardWidth = 300;
-    const cardHeight = 100;
+    const cardHeight = 68;
     const startX = (this.width - cardWidth) / 2;
-    const startY = 160;
-    const gap = 20;
+    const startY = 100;
+    const gap = 10;
 
     for (let i = 0; i < THEME_ORDER.length; i++) {
       const cardY = startY + i * (cardHeight + gap);
@@ -513,8 +513,8 @@ export class Game {
     this.renderer.drawGround(ctx, tabTheme, this.groundOffset);
 
     // Create a temporary preview bird centered in the preview area
-    const previewBird = new Bird(200, 190);
-    previewBird.y = 190 + Math.sin(performance.now() * 0.003) * 6;
+    const previewBird = new Bird(200, 148);
+    previewBird.y = 148 + Math.sin(performance.now() * 0.003) * 5;
     previewBird.wingTimer = performance.now() / 1000;
     previewBird.wingUp = Math.sin(performance.now() * 0.005) > 0;
 

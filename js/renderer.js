@@ -46,6 +46,25 @@ export class Renderer {
         size: 1.5 + Math.random() * 2.5,
         alpha: 0.4 + Math.random() * 0.6,
       };
+    } else if (theme.particles.type === 'sand') {
+      return {
+        x: randomY ? Math.random() * this.width : this.width + 5,
+        y: Math.random() * this.height,
+        speed: 40 + Math.random() * 30,
+        drift: 8 + Math.random() * 12,
+        size: 1 + Math.random() * 2,
+        alpha: 0.3 + Math.random() * 0.5,
+      };
+    } else if (theme.particles.type === 'bubbles') {
+      return {
+        x: Math.random() * this.width,
+        y: randomY ? Math.random() * this.height : this.height + 5,
+        speed: 25 + Math.random() * 35,
+        wobble: (Math.random() - 0.5) * 30,
+        wobbleOffset: Math.random() * Math.PI * 2,
+        size: 2 + Math.random() * 4,
+        alpha: 0.2 + Math.random() * 0.4,
+      };
     } else {
       // Stars
       return {
@@ -82,6 +101,30 @@ export class Renderer {
         if (p.x < 0) p.x = this.width;
         if (p.x > this.width) p.x = 0;
       }
+    } else if (theme.particles.type === 'sand') {
+      for (const p of this.particles) {
+        p.x -= p.speed * dt;
+        p.y += p.drift * dt;
+        if (p.x < -5) {
+          p.x = this.width + 5;
+          p.y = Math.random() * this.height;
+        }
+        if (p.y > this.height) {
+          p.y = 0;
+          p.x = Math.random() * this.width;
+        }
+      }
+    } else if (theme.particles.type === 'bubbles') {
+      for (const p of this.particles) {
+        p.y -= p.speed * dt;
+        p.x += Math.sin(performance.now() * 0.002 + p.wobbleOffset) * p.wobble * dt;
+        if (p.y < -10) {
+          p.y = this.height + 5;
+          p.x = Math.random() * this.width;
+        }
+        if (p.x < 0) p.x = this.width;
+        if (p.x > this.width) p.x = 0;
+      }
     } else {
       // Stars just twinkle — alpha varies with time
       for (const p of this.particles) {
@@ -92,6 +135,24 @@ export class Renderer {
 
   drawParticles(ctx, theme) {
     if (!theme.particles.enabled) return;
+
+    if (theme.particles.type === 'bubbles') {
+      for (const p of this.particles) {
+        ctx.globalAlpha = p.alpha;
+        ctx.strokeStyle = theme.particles.color;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.stroke();
+        // Shine spot
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.beginPath();
+        ctx.arc(p.x - p.size * 0.3, p.y - p.size * 0.3, p.size * 0.25, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      return;
+    }
 
     for (const p of this.particles) {
       ctx.globalAlpha = p.alpha;
@@ -187,33 +248,33 @@ export class Renderer {
   drawMenu(ctx, activeTheme, allThemes, themeOrder, customization) {
     // Title
     ctx.save();
-    ctx.font = 'bold 36px Arial, sans-serif';
+    ctx.font = 'bold 32px Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 5;
     ctx.lineJoin = 'round';
-    ctx.strokeText('FLAPPY ANYTHING', this.width / 2, 55);
+    ctx.strokeText('FLAPPY ANYTHING', this.width / 2, 45);
 
     ctx.fillStyle = '#FFF';
-    ctx.fillText('FLAPPY ANYTHING', this.width / 2, 55);
+    ctx.fillText('FLAPPY ANYTHING', this.width / 2, 45);
 
     // Subtitle
-    ctx.font = '16px Arial, sans-serif';
+    ctx.font = '14px Arial, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.9)';
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     ctx.lineWidth = 4;
-    ctx.strokeText('Choose your adventure', this.width / 2, 95);
-    ctx.fillText('Choose your adventure', this.width / 2, 95);
+    ctx.strokeText('Choose your adventure', this.width / 2, 78);
+    ctx.fillText('Choose your adventure', this.width / 2, 78);
     ctx.restore();
 
     // Theme cards
     const cardWidth = 300;
-    const cardHeight = 100;
+    const cardHeight = 68;
     const startX = (this.width - cardWidth) / 2;
-    const startY = 160;
-    const gap = 20;
+    const startY = 100;
+    const gap = 10;
 
     for (let i = 0; i < themeOrder.length; i++) {
       const themeId = themeOrder[i];
@@ -245,11 +306,11 @@ export class Renderer {
   }
 
   getCustomizeButtonBounds() {
-    return { x: 20, y: 508, w: 170, h: 32 };
+    return { x: 20, y: 502, w: 170, h: 32 };
   }
 
   getLeaderboardButtonBounds() {
-    return { x: 210, y: 508, w: 170, h: 32 };
+    return { x: 210, y: 502, w: 170, h: 32 };
   }
 
   drawThemeCard(ctx, theme, x, y, w, h, customization) {
@@ -273,40 +334,40 @@ export class Renderer {
     // Mini ground preview
     ctx.fillStyle = theme.background.groundAccent;
     ctx.beginPath();
-    ctx.roundRect(x, y + h - 18, w, 18, [0, 0, 12, 12]);
+    ctx.roundRect(x, y + h - 12, w, 12, [0, 0, 12, 12]);
     ctx.fill();
 
     // Theme name
-    ctx.font = 'bold 22px Arial, sans-serif';
+    ctx.font = 'bold 18px Arial, sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#FFF';
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     ctx.lineWidth = 3;
     ctx.lineJoin = 'round';
-    ctx.strokeText(theme.name, x + 70, y + 28);
-    ctx.fillText(theme.name, x + 70, y + 28);
+    ctx.strokeText(theme.name, x + 60, y + 18);
+    ctx.fillText(theme.name, x + 60, y + 18);
 
     // Description
-    ctx.font = '13px Arial, sans-serif';
+    ctx.font = '11px Arial, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.9)';
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     ctx.lineWidth = 3;
-    ctx.strokeText(theme.description, x + 70, y + 50);
-    ctx.fillText(theme.description, x + 70, y + 50);
+    ctx.strokeText(theme.description, x + 60, y + 35);
+    ctx.fillText(theme.description, x + 60, y + 35);
 
     // High score
     const hs = getHighScore(theme.id);
-    ctx.font = 'bold 14px Arial, sans-serif';
+    ctx.font = 'bold 12px Arial, sans-serif';
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     ctx.lineWidth = 3;
-    ctx.strokeText(`Best: ${hs}`, x + 70, y + 72);
+    ctx.strokeText(`Best: ${hs}`, x + 60, y + 50);
     ctx.fillStyle = theme.ui.menuHighlight;
-    ctx.fillText(`Best: ${hs}`, x + 70, y + 72);
+    ctx.fillText(`Best: ${hs}`, x + 60, y + 50);
 
     // Mini character preview
     const charCustom = customization ? customization[theme.id] : null;
-    this.drawMiniCharacter(ctx, theme, x + 35, y + 40, charCustom);
+    this.drawMiniCharacter(ctx, theme, x + 30, y + 28, charCustom);
 
     ctx.restore();
   }
@@ -394,6 +455,79 @@ export class Renderer {
         ctx.closePath();
         ctx.fill();
         break;
+
+      case 'cactus':
+        // Mini cactus body
+        ctx.fillStyle = bodyColor;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 9, 12, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Lighter stripe
+        ctx.fillStyle = theme.player.lightColor;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 4, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Left arm
+        ctx.fillStyle = bodyColor;
+        ctx.beginPath();
+        ctx.ellipse(-9, -1, 4, 3, -0.3, 0, Math.PI * 2);
+        ctx.fill();
+        // Right arm
+        ctx.beginPath();
+        ctx.ellipse(8, 2, 3, 2, 0.3, 0, Math.PI * 2);
+        ctx.fill();
+        // Flower
+        ctx.fillStyle = theme.player.flowerColor;
+        ctx.beginPath();
+        ctx.arc(0, -11, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = theme.player.flowerCenter;
+        ctx.beginPath();
+        ctx.arc(0, -11, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        // Eye
+        ctx.fillStyle = '#FFF';
+        ctx.beginPath();
+        ctx.arc(4, -4, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(5, -4, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+
+      case 'submarine':
+        // Mini hull
+        ctx.fillStyle = bodyColor;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 14, 8, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Hull accent
+        ctx.fillStyle = theme.player.hullAccent;
+        ctx.beginPath();
+        ctx.ellipse(0, 2, 12, 5, 0, 0, Math.PI);
+        ctx.fill();
+        // Window
+        ctx.fillStyle = '#555';
+        ctx.beginPath();
+        ctx.arc(4, -1, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = theme.player.windowColor;
+        ctx.beginPath();
+        ctx.arc(4, -1, 3, 0, Math.PI * 2);
+        ctx.fill();
+        // Periscope
+        ctx.fillStyle = theme.player.periscopeColor;
+        ctx.fillRect(-2, -13, 3, 6);
+        ctx.fillRect(-3, -14, 5, 2);
+        // Propeller line
+        ctx.strokeStyle = theme.player.propellerColor;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(-14, -3);
+        ctx.lineTo(-14, 3);
+        ctx.stroke();
+        break;
     }
 
     // Draw hat or crown on mini character
@@ -413,55 +547,59 @@ export class Renderer {
   // --- Customize Screen ---
 
   getCustomizeTabBounds(index) {
-    const tabW = 110;
-    const gap = 12;
-    const totalW = 3 * tabW + 2 * gap;
+    const tabW = 68;
+    const gap = 7;
+    const count = 5;
+    const totalW = count * tabW + (count - 1) * gap;
     const startX = (this.width - totalW) / 2;
-    return { x: startX + index * (tabW + gap), y: 70, w: tabW, h: 36 };
+    return { x: startX + index * (tabW + gap), y: 62, w: tabW, h: 30 };
   }
 
   getHatOptionBounds(index) {
-    const optW = 66;
-    const gap = 10;
-    const count = 5;
-    const totalW = count * optW + (count - 1) * gap;
+    const cols = 5;
+    const optW = 56;
+    const gapX = 10;
+    const gapY = 6;
+    const totalW = cols * optW + (cols - 1) * gapX;
     const startX = (this.width - totalW) / 2;
-    return { x: startX + index * (optW + gap), y: 295, w: optW, h: 60 };
+    const row = Math.floor(index / cols);
+    const col = index % cols;
+    return { x: startX + col * (optW + gapX), y: 220 + row * (46 + gapY), w: optW, h: 46 };
   }
 
   getCrownOptionBounds(index) {
-    const optW = 66;
+    const optW = 56;
     const gap = 10;
     const count = 3;
     const totalW = count * optW + (count - 1) * gap;
     const startX = (this.width - totalW) / 2;
-    return { x: startX + index * (optW + gap), y: 365, w: optW, h: 50 };
+    return { x: startX + index * (optW + gap), y: 378, w: optW, h: 44 };
   }
 
   getColorSwatchBounds(index) {
-    const swatchSize = 34;
+    const cols = 9;
+    const swatchSize = 28;
     const gap = 5;
-    const count = 8;
-    const resetW = 26;
-    const resetGap = 6;
-    const totalW = count * swatchSize + (count - 1) * gap + resetGap + resetW;
+    const totalW = cols * swatchSize + (cols - 1) * gap;
     const startX = (this.width - totalW) / 2;
-    return { x: startX + index * (swatchSize + gap), y: 450, w: swatchSize, h: swatchSize };
+    const row = Math.floor(index / cols);
+    const col = index % cols;
+    return { x: startX + col * (swatchSize + gap), y: 438 + row * (swatchSize + gap), w: swatchSize, h: swatchSize };
   }
 
   getResetColorBounds() {
-    const swatchSize = 34;
+    const cols = 9;
+    const swatchSize = 28;
     const gap = 5;
-    const count = 8;
-    const resetW = 26;
-    const resetGap = 6;
-    const totalW = count * swatchSize + (count - 1) * gap + resetGap + resetW;
+    const totalW = cols * swatchSize + (cols - 1) * gap;
     const startX = (this.width - totalW) / 2;
-    return { x: startX + count * (swatchSize + gap) + resetGap - gap, y: 450, w: resetW, h: swatchSize };
+    // Place reset button after the last swatch in second row
+    const row2Count = COLOR_PALETTE.length - cols;
+    return { x: startX + row2Count * (swatchSize + gap) + gap, y: 438 + (swatchSize + gap), w: swatchSize, h: swatchSize };
   }
 
   getCustomizeBackBounds() {
-    return { x: (this.width - 140) / 2, y: 530, w: 140, h: 36 };
+    return { x: (this.width - 140) / 2, y: 506, w: 140, h: 34 };
   }
 
   drawCustomizeScreen(ctx, allThemes, themeOrder, customization, activeTab, previewBird, crownRank) {
@@ -470,18 +608,18 @@ export class Renderer {
 
     // Title
     ctx.save();
-    ctx.font = 'bold 30px Arial, sans-serif';
+    ctx.font = 'bold 26px Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 4;
     ctx.lineJoin = 'round';
-    ctx.strokeText('CUSTOMIZE', this.width / 2, 40);
+    ctx.strokeText('CUSTOMIZE', this.width / 2, 38);
     ctx.fillStyle = '#FFF';
-    ctx.fillText('CUSTOMIZE', this.width / 2, 40);
+    ctx.fillText('CUSTOMIZE', this.width / 2, 38);
     ctx.restore();
 
-    // Character tabs
+    // Character tabs (5 tabs)
     for (let i = 0; i < themeOrder.length; i++) {
       const themeId = themeOrder[i];
       const theme = allThemes[themeId];
@@ -500,7 +638,7 @@ export class Renderer {
         ctx.stroke();
       }
 
-      ctx.font = 'bold 14px Arial, sans-serif';
+      ctx.font = 'bold 12px Arial, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.lineJoin = 'round';
@@ -516,7 +654,7 @@ export class Renderer {
     ctx.save();
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
     ctx.beginPath();
-    ctx.roundRect(100, 120, 200, 140, 12);
+    ctx.roundRect(100, 98, 200, 100, 12);
     ctx.fill();
     ctx.restore();
 
@@ -527,19 +665,19 @@ export class Renderer {
 
     // "Hat" label
     ctx.save();
-    ctx.font = 'bold 16px Arial, sans-serif';
+    ctx.font = 'bold 14px Arial, sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.lineJoin = 'round';
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     ctx.lineWidth = 3;
     const hatLabelX = this.getHatOptionBounds(0).x;
-    ctx.strokeText('Hat', hatLabelX, 280);
+    ctx.strokeText('Hat', hatLabelX, 208);
     ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.fillText('Hat', hatLabelX, 280);
+    ctx.fillText('Hat', hatLabelX, 208);
     ctx.restore();
 
-    // Hat options
+    // Hat options (3 rows)
     for (let i = 0; i < HAT_ORDER.length; i++) {
       const hatId = HAT_ORDER[i];
       const hat = HATS[hatId];
@@ -563,21 +701,21 @@ export class Renderer {
         ctx.strokeStyle = 'rgba(255,255,255,0.4)';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.arc(b.x + b.w / 2, b.y + 22, 10, 0, Math.PI * 2);
+        ctx.arc(b.x + b.w / 2, b.y + 18, 8, 0, Math.PI * 2);
         ctx.stroke();
         ctx.beginPath();
-        ctx.moveTo(b.x + b.w / 2 - 7, b.y + 29);
-        ctx.lineTo(b.x + b.w / 2 + 7, b.y + 15);
+        ctx.moveTo(b.x + b.w / 2 - 6, b.y + 24);
+        ctx.lineTo(b.x + b.w / 2 + 6, b.y + 12);
         ctx.stroke();
       } else {
-        drawHat(ctx, hatId, b.x + b.w / 2, b.y + 28, 0.9);
+        drawHat(ctx, hatId, b.x + b.w / 2, b.y + 22, 0.75);
       }
 
-      ctx.font = '12px Arial, sans-serif';
+      ctx.font = '10px Arial, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = isSelected ? '#FFF' : 'rgba(255,255,255,0.85)';
-      ctx.fillText(hat.name, b.x + b.w / 2, b.y + b.h - 8);
+      ctx.fillText(hat.name, b.x + b.w / 2, b.y + b.h - 6);
       ctx.restore();
     }
 
@@ -608,19 +746,19 @@ export class Renderer {
         ctx.stroke();
       }
 
-      drawCharacterCrown(ctx, b.x + b.w / 2, b.y + 20, crown.color, 1.0);
+      drawCharacterCrown(ctx, b.x + b.w / 2, b.y + 18, crown.color, 0.85);
 
-      ctx.font = '12px Arial, sans-serif';
+      ctx.font = '10px Arial, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = isSelected && !isLocked ? '#FFF' : 'rgba(255,255,255,0.85)';
-      ctx.fillText(isLocked ? 'Top ' + requiredRank : crown.name, b.x + b.w / 2, b.y + b.h - 8);
+      ctx.fillText(isLocked ? 'Top ' + requiredRank : crown.name, b.x + b.w / 2, b.y + b.h - 6);
 
       if (isLocked) {
         ctx.globalAlpha = 1;
         ctx.fillStyle = 'rgba(255,255,255,0.5)';
-        ctx.font = '13px Arial, sans-serif';
-        ctx.fillText('\u{1F512}', b.x + b.w / 2, b.y + 6);
+        ctx.font = '11px Arial, sans-serif';
+        ctx.fillText('\u{1F512}', b.x + b.w / 2, b.y + 5);
       }
 
       ctx.restore();
@@ -628,19 +766,19 @@ export class Renderer {
 
     // "Color" label
     ctx.save();
-    ctx.font = 'bold 16px Arial, sans-serif';
+    ctx.font = 'bold 14px Arial, sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     const colorLabelX = this.getColorSwatchBounds(0).x;
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     ctx.lineWidth = 3;
     ctx.lineJoin = 'round';
-    ctx.strokeText('Color', colorLabelX, 437);
+    ctx.strokeText('Color', colorLabelX, 428);
     ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.fillText('Color', colorLabelX, 437);
+    ctx.fillText('Color', colorLabelX, 428);
     ctx.restore();
 
-    // Color swatches
+    // Color swatches (2 rows)
     const effectiveColor = charCustom.bodyColor || activeTheme.player.bodyColor;
     for (let i = 0; i < COLOR_PALETTE.length; i++) {
       const color = COLOR_PALETTE[i];
@@ -652,15 +790,15 @@ export class Renderer {
       // Swatch background
       ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.roundRect(b.x + 3, b.y + 3, b.w - 6, b.h - 6, 6);
+      ctx.roundRect(b.x + 2, b.y + 2, b.w - 4, b.h - 4, 5);
       ctx.fill();
 
       // Selection ring
       if (isSelected) {
         ctx.strokeStyle = '#FFF';
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.roundRect(b.x + 1, b.y + 1, b.w - 2, b.h - 2, 8);
+        ctx.roundRect(b.x, b.y, b.w, b.h, 6);
         ctx.stroke();
       }
 
@@ -672,7 +810,7 @@ export class Renderer {
     ctx.save();
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.beginPath();
-    ctx.roundRect(rb.x, rb.y + 2, rb.w, rb.h - 4, 6);
+    ctx.roundRect(rb.x, rb.y + 2, rb.w, rb.h - 4, 5);
     ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.3)';
     ctx.lineWidth = 1;
@@ -682,12 +820,12 @@ export class Renderer {
     ctx.lineWidth = 1.5;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.arc(rb.x + rb.w / 2, rb.y + rb.h / 2, 6, -Math.PI * 0.8, Math.PI * 0.5);
+    ctx.arc(rb.x + rb.w / 2, rb.y + rb.h / 2, 5, -Math.PI * 0.8, Math.PI * 0.5);
     ctx.stroke();
     // Arrowhead
     ctx.beginPath();
-    ctx.moveTo(rb.x + rb.w / 2 + 2, rb.y + rb.h / 2 + 5);
-    ctx.lineTo(rb.x + rb.w / 2 + 5, rb.y + rb.h / 2 + 2);
+    ctx.moveTo(rb.x + rb.w / 2 + 2, rb.y + rb.h / 2 + 4);
+    ctx.lineTo(rb.x + rb.w / 2 + 4, rb.y + rb.h / 2 + 1);
     ctx.lineTo(rb.x + rb.w / 2 + 1, rb.y + rb.h / 2 + 1);
     ctx.stroke();
     ctx.restore();
@@ -702,7 +840,7 @@ export class Renderer {
     ctx.strokeStyle = 'rgba(255,255,255,0.4)';
     ctx.lineWidth = 1.5;
     ctx.stroke();
-    ctx.font = 'bold 16px Arial, sans-serif';
+    ctx.font = 'bold 15px Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#FFF';

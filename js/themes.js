@@ -163,6 +163,122 @@ export const THEMES = {
       click: { wave: 'square', freq: 700, duration: 0.04, volume: 0.15 },
     },
   },
+
+  desert: {
+    id: 'desert',
+    name: 'Desert',
+    description: 'Survive the scorching sands',
+
+    background: {
+      skyGradient: ['#F4A460', '#EDC9AF'],
+      hasClouds: false,
+      hasSnowfall: false,
+      hasStarfield: false,
+      groundColor: '#D2B48C',
+      groundAccent: '#C19A6B',
+      groundHeight: 60,
+    },
+
+    player: {
+      type: 'cactus',
+      bodyColor: '#2D8B46',
+      lightColor: '#3DA85C',
+      flowerColor: '#FF69B4',
+      flowerCenter: '#FFD700',
+      eyeColor: '#FFFFFF',
+      size: 17,
+    },
+
+    pipe: {
+      color: '#C2A67D',
+      highlightColor: '#D4BC96',
+      capColor: '#A68B5B',
+      width: 52,
+      capHeight: 20,
+      capOverhang: 4,
+      hasRockTexture: false,
+      hasSandstoneTexture: true,
+    },
+
+    ui: {
+      scoreColor: '#FFFFFF',
+      scoreStroke: '#8B4513',
+      menuHighlight: '#DAA520',
+    },
+
+    particles: {
+      enabled: true,
+      type: 'sand',
+      color: '#D2B48C',
+      count: 30,
+    },
+
+    sounds: {
+      flap:  { wave: 'triangle', freq: 300, freqEnd: 450, duration: 0.1, volume: 0.3 },
+      score: { wave: 'sine', freqs: [770, 1155], spacing: 0.08, duration: 0.15, volume: 0.25 },
+      crash: { duration: 0.3, noiseVolume: 0.3, thudFreq: 70, volume: 0.35 },
+      click: { wave: 'sine', freq: 550, duration: 0.05, volume: 0.2 },
+    },
+  },
+
+  water: {
+    id: 'water',
+    name: 'Water',
+    description: 'Explore the deep blue sea',
+
+    background: {
+      skyGradient: ['#006994', '#004466'],
+      hasClouds: false,
+      hasSnowfall: false,
+      hasStarfield: false,
+      groundColor: '#C2B280',
+      groundAccent: '#2E8B57',
+      groundHeight: 60,
+    },
+
+    player: {
+      type: 'submarine',
+      bodyColor: '#F4D03F',
+      hullAccent: '#D4AC0D',
+      windowColor: '#87CEEB',
+      periscopeColor: '#888888',
+      propellerColor: '#999999',
+      size: 17,
+    },
+
+    pipe: {
+      color: '#E8737A',
+      highlightColor: '#F09EA3',
+      capColor: '#C0504D',
+      accentColor: '#FF6B6B',
+      branchColor: '#E8737A',
+      width: 52,
+      capHeight: 20,
+      capOverhang: 4,
+      hasRockTexture: false,
+      hasCoralTexture: true,
+    },
+
+    ui: {
+      scoreColor: '#FFFFFF',
+      scoreStroke: '#003366',
+      menuHighlight: '#40E0D0',
+    },
+
+    particles: {
+      enabled: true,
+      type: 'bubbles',
+      color: 'rgba(255,255,255,0.6)',
+      count: 25,
+    },
+
+    sounds: {
+      flap:  { wave: 'sine', freq: 200, freqEnd: 350, duration: 0.12, volume: 0.25 },
+      score: { wave: 'sine', freqs: [700, 1050], spacing: 0.09, duration: 0.15, volume: 0.25 },
+      crash: { duration: 0.3, noiseVolume: 0.25, thudFreq: 60, volume: 0.3 },
+      click: { wave: 'sine', freq: 480, duration: 0.05, volume: 0.2 },
+    },
+  },
 };
 
-export const THEME_ORDER = ['classic', 'arctic', 'space'];
+export const THEME_ORDER = ['classic', 'arctic', 'space', 'desert', 'water'];
