@@ -88,9 +88,9 @@ export const THEMES = {
     },
 
     ui: {
-      scoreColor: '#2C3E50',
-      scoreStroke: '#FFFFFF',
-      menuHighlight: '#3498DB',
+      scoreColor: '#FFFFFF',
+      scoreStroke: '#2C3E50',
+      menuHighlight: '#1A6DAD',
     },
 
     particles: {

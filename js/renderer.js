@@ -201,9 +201,9 @@ export class Renderer {
 
     // Subtitle
     ctx.font = '16px Arial, sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 4;
     ctx.strokeText('Choose your adventure', this.width / 2, 95);
     ctx.fillText('Choose your adventure', this.width / 2, 95);
     ctx.restore();
@@ -289,19 +289,19 @@ export class Renderer {
 
     // Description
     ctx.font = '13px Arial, sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-    ctx.lineWidth = 2;
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 3;
     ctx.strokeText(theme.description, x + 70, y + 50);
     ctx.fillText(theme.description, x + 70, y + 50);
 
     // High score
     const hs = getHighScore(theme.id);
     ctx.font = 'bold 14px Arial, sans-serif';
-    ctx.fillStyle = theme.ui.menuHighlight;
-    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 3;
     ctx.strokeText(`Best: ${hs}`, x + 70, y + 72);
+    ctx.fillStyle = theme.ui.menuHighlight;
     ctx.fillText(`Best: ${hs}`, x + 70, y + 72);
 
     // Mini character preview
@@ -503,7 +503,11 @@ export class Renderer {
       ctx.font = 'bold 14px Arial, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = isActive ? '#FFF' : 'rgba(255,255,255,0.6)';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+      ctx.lineWidth = 2;
+      ctx.strokeText(theme.name, tab.x + tab.w / 2, tab.y + tab.h / 2);
+      ctx.fillStyle = isActive ? '#FFF' : 'rgba(255,255,255,0.8)';
       ctx.fillText(theme.name, tab.x + tab.w / 2, tab.y + tab.h / 2);
       ctx.restore();
     }
@@ -526,8 +530,12 @@ export class Renderer {
     ctx.font = 'bold 16px Arial, sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 3;
     const hatLabelX = this.getHatOptionBounds(0).x;
+    ctx.strokeText('Hat', hatLabelX, 280);
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
     ctx.fillText('Hat', hatLabelX, 280);
     ctx.restore();
 
@@ -565,10 +573,10 @@ export class Renderer {
         drawHat(ctx, hatId, b.x + b.w / 2, b.y + 28, 0.9);
       }
 
-      ctx.font = '11px Arial, sans-serif';
+      ctx.font = '12px Arial, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = isSelected ? '#FFF' : 'rgba(255,255,255,0.7)';
+      ctx.fillStyle = isSelected ? '#FFF' : 'rgba(255,255,255,0.85)';
       ctx.fillText(hat.name, b.x + b.w / 2, b.y + b.h - 8);
       ctx.restore();
     }
@@ -602,10 +610,10 @@ export class Renderer {
 
       drawCharacterCrown(ctx, b.x + b.w / 2, b.y + 20, crown.color, 1.0);
 
-      ctx.font = '11px Arial, sans-serif';
+      ctx.font = '12px Arial, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = isSelected && !isLocked ? '#FFF' : 'rgba(255,255,255,0.7)';
+      ctx.fillStyle = isSelected && !isLocked ? '#FFF' : 'rgba(255,255,255,0.85)';
       ctx.fillText(isLocked ? 'Top ' + requiredRank : crown.name, b.x + b.w / 2, b.y + b.h - 8);
 
       if (isLocked) {
@@ -623,8 +631,12 @@ export class Renderer {
     ctx.font = 'bold 16px Arial, sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
     const colorLabelX = this.getColorSwatchBounds(0).x;
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 3;
+    ctx.lineJoin = 'round';
+    ctx.strokeText('Color', colorLabelX, 437);
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
     ctx.fillText('Color', colorLabelX, 437);
     ctx.restore();
 
@@ -683,7 +695,7 @@ export class Renderer {
     // Back button
     const back = this.getCustomizeBackBounds();
     ctx.save();
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
     ctx.beginPath();
     ctx.roundRect(back.x, back.y, back.w, back.h, 10);
     ctx.fill();
@@ -788,7 +800,7 @@ export class Renderer {
 
     // Column headers (above clip region)
     ctx.font = 'bold 13px Arial, sans-serif';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
     ctx.textAlign = 'left';
     ctx.fillText('#', panelX + 16, panelY + 22);
     ctx.fillText('Name', panelX + 45, panelY + 22);
@@ -874,7 +886,7 @@ export class Renderer {
       const barH = Math.max(30, trackH * (clipH / totalContentH));
       const barY = trackTop + (trackH - barH) * (scrollOffset / maxScroll);
 
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
       ctx.beginPath();
       ctx.roundRect(panelX + panelW - 8, barY, 4, barH, 2);
       ctx.fill();
@@ -993,7 +1005,7 @@ export class Renderer {
 
     // Score
     ctx.font = 'bold 20px Arial, sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
     ctx.fillText('Score', this.width / 2, panelY + 80);
 
     ctx.font = 'bold 40px Arial, sans-serif';
