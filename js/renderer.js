@@ -1,4 +1,6 @@
 import { getHighScore } from './storage.js';
+import { drawHat, drawCharacterCrown, getCrownColor, HAT_ANCHORS } from './bird.js';
+import { HATS, HAT_ORDER, CROWN_ORDER, COLOR_PALETTE } from './customization.js';
 
 export class Renderer {
   constructor(width, height) {
@@ -182,7 +184,7 @@ export class Renderer {
 
   // --- Menu ---
 
-  drawMenu(ctx, activeTheme, allThemes, themeOrder) {
+  drawMenu(ctx, activeTheme, allThemes, themeOrder, customization) {
     // Title
     ctx.save();
     ctx.font = 'bold 36px Arial, sans-serif';
@@ -217,15 +219,19 @@ export class Renderer {
       const themeId = themeOrder[i];
       const theme = allThemes[themeId];
       const y = startY + i * (cardHeight + gap);
-      this.drawThemeCard(ctx, theme, startX, y, cardWidth, cardHeight);
+      this.drawThemeCard(ctx, theme, startX, y, cardWidth, cardHeight, customization);
     }
 
-    // Leaderboard button
-    const lb = this.getLeaderboardButtonBounds();
+    // Bottom buttons (side by side)
+    this.drawMenuButton(ctx, this.getCustomizeButtonBounds(), 'Customize');
+    this.drawMenuButton(ctx, this.getLeaderboardButtonBounds(), 'Leaderboard');
+  }
+
+  drawMenuButton(ctx, bounds, label) {
     ctx.save();
     ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
     ctx.beginPath();
-    ctx.roundRect(lb.x, lb.y, lb.w, lb.h, 8);
+    ctx.roundRect(bounds.x, bounds.y, bounds.w, bounds.h, 8);
     ctx.fill();
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
     ctx.lineWidth = 1.5;
@@ -234,16 +240,19 @@ export class Renderer {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#FFF';
-    ctx.fillText('Leaderboard', lb.x + lb.w / 2, lb.y + lb.h / 2);
+    ctx.fillText(label, bounds.x + bounds.w / 2, bounds.y + bounds.h / 2);
     ctx.restore();
   }
 
-  getLeaderboardButtonBounds() {
-    const w = 180;
-    return { x: (this.width - w) / 2, y: 508, w: w, h: 32 };
+  getCustomizeButtonBounds() {
+    return { x: 20, y: 508, w: 170, h: 32 };
   }
 
-  drawThemeCard(ctx, theme, x, y, w, h) {
+  getLeaderboardButtonBounds() {
+    return { x: 210, y: 508, w: 170, h: 32 };
+  }
+
+  drawThemeCard(ctx, theme, x, y, w, h, customization) {
     // Card background with theme gradient
     ctx.save();
     const grad = ctx.createLinearGradient(x, y, x + w, y);
@@ -296,18 +305,21 @@ export class Renderer {
     ctx.fillText(`Best: ${hs}`, x + 70, y + 72);
 
     // Mini character preview
-    this.drawMiniCharacter(ctx, theme, x + 35, y + 40);
+    const charCustom = customization ? customization[theme.id] : null;
+    this.drawMiniCharacter(ctx, theme, x + 35, y + 40, charCustom);
 
     ctx.restore();
   }
 
-  drawMiniCharacter(ctx, theme, cx, cy) {
+  drawMiniCharacter(ctx, theme, cx, cy, charCustomization) {
+    const bodyColor = (charCustomization && charCustomization.bodyColor) || theme.player.bodyColor;
+
     ctx.save();
     ctx.translate(cx, cy);
 
     switch (theme.player.type) {
       case 'bird':
-        ctx.fillStyle = theme.player.bodyColor;
+        ctx.fillStyle = bodyColor;
         ctx.beginPath();
         ctx.ellipse(0, 0, 12, 9, 0, 0, Math.PI * 2);
         ctx.fill();
@@ -333,7 +345,7 @@ export class Renderer {
         break;
 
       case 'penguin':
-        ctx.fillStyle = theme.player.bodyColor;
+        ctx.fillStyle = bodyColor;
         ctx.beginPath();
         ctx.ellipse(0, 0, 10, 13, 0, 0, Math.PI * 2);
         ctx.fill();
@@ -359,7 +371,7 @@ export class Renderer {
         break;
 
       case 'rocket':
-        ctx.fillStyle = theme.player.bodyColor;
+        ctx.fillStyle = bodyColor;
         ctx.beginPath();
         ctx.roundRect(-9, -6, 18, 12, 2);
         ctx.fill();
@@ -384,6 +396,305 @@ export class Renderer {
         break;
     }
 
+    // Draw hat or crown on mini character
+    const anchor = HAT_ANCHORS[theme.player.type];
+    if (charCustomization && charCustomization.hat && charCustomization.hat !== 'none' && anchor) {
+      const cc = getCrownColor(charCustomization.hat);
+      if (cc) {
+        drawCharacterCrown(ctx, anchor.x, anchor.y - 1, cc, 0.55);
+      } else {
+        drawHat(ctx, charCustomization.hat, anchor.x, anchor.y, 0.7);
+      }
+    }
+
+    ctx.restore();
+  }
+
+  // --- Customize Screen ---
+
+  getCustomizeTabBounds(index) {
+    const tabW = 110;
+    const gap = 12;
+    const totalW = 3 * tabW + 2 * gap;
+    const startX = (this.width - totalW) / 2;
+    return { x: startX + index * (tabW + gap), y: 70, w: tabW, h: 36 };
+  }
+
+  getHatOptionBounds(index) {
+    const optW = 66;
+    const gap = 10;
+    const count = 5;
+    const totalW = count * optW + (count - 1) * gap;
+    const startX = (this.width - totalW) / 2;
+    return { x: startX + index * (optW + gap), y: 295, w: optW, h: 60 };
+  }
+
+  getCrownOptionBounds(index) {
+    const optW = 66;
+    const gap = 10;
+    const count = 3;
+    const totalW = count * optW + (count - 1) * gap;
+    const startX = (this.width - totalW) / 2;
+    return { x: startX + index * (optW + gap), y: 365, w: optW, h: 50 };
+  }
+
+  getColorSwatchBounds(index) {
+    const swatchSize = 34;
+    const gap = 5;
+    const count = 8;
+    const resetW = 26;
+    const resetGap = 6;
+    const totalW = count * swatchSize + (count - 1) * gap + resetGap + resetW;
+    const startX = (this.width - totalW) / 2;
+    return { x: startX + index * (swatchSize + gap), y: 450, w: swatchSize, h: swatchSize };
+  }
+
+  getResetColorBounds() {
+    const swatchSize = 34;
+    const gap = 5;
+    const count = 8;
+    const resetW = 26;
+    const resetGap = 6;
+    const totalW = count * swatchSize + (count - 1) * gap + resetGap + resetW;
+    const startX = (this.width - totalW) / 2;
+    return { x: startX + count * (swatchSize + gap) + resetGap - gap, y: 450, w: resetW, h: swatchSize };
+  }
+
+  getCustomizeBackBounds() {
+    return { x: (this.width - 140) / 2, y: 530, w: 140, h: 36 };
+  }
+
+  drawCustomizeScreen(ctx, allThemes, themeOrder, customization, activeTab, previewBird, crownRank) {
+    const activeTheme = allThemes[activeTab];
+    const charCustom = customization[activeTab];
+
+    // Title
+    ctx.save();
+    ctx.font = 'bold 30px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 4;
+    ctx.lineJoin = 'round';
+    ctx.strokeText('CUSTOMIZE', this.width / 2, 40);
+    ctx.fillStyle = '#FFF';
+    ctx.fillText('CUSTOMIZE', this.width / 2, 40);
+    ctx.restore();
+
+    // Character tabs
+    for (let i = 0; i < themeOrder.length; i++) {
+      const themeId = themeOrder[i];
+      const theme = allThemes[themeId];
+      const tab = this.getCustomizeTabBounds(i);
+      const isActive = themeId === activeTab;
+
+      ctx.save();
+      ctx.fillStyle = isActive ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.3)';
+      ctx.beginPath();
+      ctx.roundRect(tab.x, tab.y, tab.w, tab.h, 8);
+      ctx.fill();
+
+      if (isActive) {
+        ctx.strokeStyle = theme.ui.menuHighlight;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      ctx.font = 'bold 14px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = isActive ? '#FFF' : 'rgba(255,255,255,0.6)';
+      ctx.fillText(theme.name, tab.x + tab.w / 2, tab.y + tab.h / 2);
+      ctx.restore();
+    }
+
+    // Character preview area
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath();
+    ctx.roundRect(100, 120, 200, 140, 12);
+    ctx.fill();
+    ctx.restore();
+
+    // Draw preview character (using the Bird instance)
+    if (previewBird) {
+      previewBird.draw(ctx, activeTheme, charCustom);
+    }
+
+    // "Hat" label
+    ctx.save();
+    ctx.font = 'bold 16px Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    const hatLabelX = this.getHatOptionBounds(0).x;
+    ctx.fillText('Hat', hatLabelX, 280);
+    ctx.restore();
+
+    // Hat options
+    for (let i = 0; i < HAT_ORDER.length; i++) {
+      const hatId = HAT_ORDER[i];
+      const hat = HATS[hatId];
+      const b = this.getHatOptionBounds(i);
+      const isSelected = charCustom.hat === hatId;
+
+      ctx.save();
+      ctx.fillStyle = isSelected ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.3)';
+      ctx.beginPath();
+      ctx.roundRect(b.x, b.y, b.w, b.h, 8);
+      ctx.fill();
+
+      if (isSelected) {
+        ctx.strokeStyle = '#FFF';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      // Hat icon
+      if (hatId === 'none') {
+        ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(b.x + b.w / 2, b.y + 22, 10, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(b.x + b.w / 2 - 7, b.y + 29);
+        ctx.lineTo(b.x + b.w / 2 + 7, b.y + 15);
+        ctx.stroke();
+      } else {
+        drawHat(ctx, hatId, b.x + b.w / 2, b.y + 28, 0.9);
+      }
+
+      ctx.font = '11px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = isSelected ? '#FFF' : 'rgba(255,255,255,0.7)';
+      ctx.fillText(hat.name, b.x + b.w / 2, b.y + b.h - 8);
+      ctx.restore();
+    }
+
+    // Crown options
+    for (let i = 0; i < CROWN_ORDER.length; i++) {
+      const crownId = CROWN_ORDER[i];
+      const crown = HATS[crownId];
+      const b = this.getCrownOptionBounds(i);
+      const isSelected = charCustom.hat === crownId;
+      // Rank 1: gold+silver+bronze, Rank 2: silver+bronze, Rank 3: bronze only
+      const requiredRank = i + 1; // gold=1, silver=2, bronze=3
+      const isLocked = !crownRank || crownRank > requiredRank;
+
+      ctx.save();
+
+      if (isLocked) {
+        ctx.globalAlpha = 0.35;
+      }
+
+      ctx.fillStyle = isSelected && !isLocked ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.3)';
+      ctx.beginPath();
+      ctx.roundRect(b.x, b.y, b.w, b.h, 8);
+      ctx.fill();
+
+      if (isSelected && !isLocked) {
+        ctx.strokeStyle = '#FFF';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      drawCharacterCrown(ctx, b.x + b.w / 2, b.y + 20, crown.color, 1.0);
+
+      ctx.font = '11px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = isSelected && !isLocked ? '#FFF' : 'rgba(255,255,255,0.7)';
+      ctx.fillText(isLocked ? 'Top ' + requiredRank : crown.name, b.x + b.w / 2, b.y + b.h - 8);
+
+      if (isLocked) {
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.font = '13px Arial, sans-serif';
+        ctx.fillText('\u{1F512}', b.x + b.w / 2, b.y + 6);
+      }
+
+      ctx.restore();
+    }
+
+    // "Color" label
+    ctx.save();
+    ctx.font = 'bold 16px Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    const colorLabelX = this.getColorSwatchBounds(0).x;
+    ctx.fillText('Color', colorLabelX, 437);
+    ctx.restore();
+
+    // Color swatches
+    const effectiveColor = charCustom.bodyColor || activeTheme.player.bodyColor;
+    for (let i = 0; i < COLOR_PALETTE.length; i++) {
+      const color = COLOR_PALETTE[i];
+      const b = this.getColorSwatchBounds(i);
+      const isSelected = effectiveColor === color;
+
+      ctx.save();
+
+      // Swatch background
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.roundRect(b.x + 3, b.y + 3, b.w - 6, b.h - 6, 6);
+      ctx.fill();
+
+      // Selection ring
+      if (isSelected) {
+        ctx.strokeStyle = '#FFF';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.roundRect(b.x + 1, b.y + 1, b.w - 2, b.h - 2, 8);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
+    // Reset color button
+    const rb = this.getResetColorBounds();
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.roundRect(rb.x, rb.y + 2, rb.w, rb.h - 4, 6);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // Reset arrow icon
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+    ctx.lineWidth = 1.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(rb.x + rb.w / 2, rb.y + rb.h / 2, 6, -Math.PI * 0.8, Math.PI * 0.5);
+    ctx.stroke();
+    // Arrowhead
+    ctx.beginPath();
+    ctx.moveTo(rb.x + rb.w / 2 + 2, rb.y + rb.h / 2 + 5);
+    ctx.lineTo(rb.x + rb.w / 2 + 5, rb.y + rb.h / 2 + 2);
+    ctx.lineTo(rb.x + rb.w / 2 + 1, rb.y + rb.h / 2 + 1);
+    ctx.stroke();
+    ctx.restore();
+
+    // Back button
+    const back = this.getCustomizeBackBounds();
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath();
+    ctx.roundRect(back.x, back.y, back.w, back.h, 10);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.font = 'bold 16px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#FFF';
+    ctx.fillText('Back', back.x + back.w / 2, back.y + back.h / 2);
     ctx.restore();
   }
 

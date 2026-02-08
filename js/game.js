@@ -5,6 +5,7 @@ import { Renderer } from './renderer.js';
 import { saveScore, getHighScore } from './storage.js';
 import { AudioManager } from './audio.js';
 import * as leaderboard from './leaderboard.js';
+import { loadCustomization, saveCustomization, HATS, HAT_ORDER, CROWN_ORDER, COLOR_PALETTE } from './customization.js';
 
 const PIPE_SPEED = 150;
 const PIPE_SPACING = 200;
@@ -35,6 +36,12 @@ export class Game {
     this.groundOffset = 0;
     this.lastTime = 0;
 
+    // Customization
+    this.customization = loadCustomization();
+    this.customizeTab = 'classic';
+    this.crownRank = null; // 1, 2, or 3 if in top 3
+    this.refreshCrown();
+
     // Leaderboard
     this.leaderboardScores = [];
     this.leaderboardScroll = 0;
@@ -54,7 +61,7 @@ export class Game {
       leaderboard.setPlayerName(name);
       this.nameOverlay.classList.add('hidden');
       this.nameInput.value = '';
-      leaderboard.submitScore(this.pendingScore);
+      leaderboard.submitScore(this.pendingScore).then(() => this.refreshCrown());
       this.state = 'GAME_OVER';
     };
 
@@ -100,6 +107,9 @@ export class Game {
         this.input.consumeClick();
         this.input.consumeFlap();
         break;
+      case 'CUSTOMIZE':
+        this.updateCustomize(dt);
+        break;
       case 'LEADERBOARD':
         this.updateLeaderboard(dt);
         break;
@@ -119,6 +129,15 @@ export class Game {
            click.y >= bounds.y && click.y <= bounds.y + bounds.h;
   }
 
+  isCrownUnlocked(crownId) {
+    if (!this.crownRank) return false;
+    // Rank 1: gold+silver+bronze, Rank 2: silver+bronze, Rank 3: bronze only
+    if (crownId === 'crown_gold')   return this.crownRank <= 1;
+    if (crownId === 'crown_silver') return this.crownRank <= 2;
+    if (crownId === 'crown_bronze') return this.crownRank <= 3;
+    return false;
+  }
+
   updateMenu(dt) {
     this.groundOffset = (this.groundOffset + PIPE_SPEED * 0.3 * dt);
 
@@ -128,6 +147,14 @@ export class Game {
 
     if (this.checkMuteClick(click)) {
       this.audio.toggleMute();
+      return;
+    }
+
+    // Customize button
+    if (this.checkButtonClick(click, this.renderer.getCustomizeButtonBounds())) {
+      this.audio.play('click');
+      this.renderer.initParticles(THEMES[this.customizeTab]);
+      this.state = 'CUSTOMIZE';
       return;
     }
 
@@ -187,6 +214,77 @@ export class Game {
     if (this.checkButtonClick(click, this.renderer.getLeaderboardBackButtonBounds())) {
       this.audio.play('click');
       this.state = 'MENU';
+    }
+  }
+
+  updateCustomize(dt) {
+    this.groundOffset += PIPE_SPEED * 0.3 * dt;
+    this.renderer.updateParticles(dt, THEMES[this.customizeTab]);
+
+    const click = this.input.consumeClick();
+    this.input.consumeFlap();
+    if (!click) return;
+
+    if (this.checkMuteClick(click)) {
+      this.audio.toggleMute();
+      return;
+    }
+
+    // Tab clicks
+    for (let i = 0; i < THEME_ORDER.length; i++) {
+      if (this.checkButtonClick(click, this.renderer.getCustomizeTabBounds(i))) {
+        this.audio.play('click');
+        this.customizeTab = THEME_ORDER[i];
+        this.renderer.initParticles(THEMES[this.customizeTab]);
+        return;
+      }
+    }
+
+    // Hat option clicks
+    for (let i = 0; i < HAT_ORDER.length; i++) {
+      if (this.checkButtonClick(click, this.renderer.getHatOptionBounds(i))) {
+        this.audio.play('click');
+        this.customization[this.customizeTab].hat = HAT_ORDER[i];
+        saveCustomization(this.customization);
+        return;
+      }
+    }
+
+    // Crown option clicks
+    for (let i = 0; i < CROWN_ORDER.length; i++) {
+      if (this.checkButtonClick(click, this.renderer.getCrownOptionBounds(i))) {
+        const crownId = CROWN_ORDER[i];
+        if (!this.isCrownUnlocked(crownId)) return; // locked
+        this.audio.play('click');
+        this.customization[this.customizeTab].hat = crownId;
+        saveCustomization(this.customization);
+        return;
+      }
+    }
+
+    // Color swatch clicks
+    for (let i = 0; i < COLOR_PALETTE.length; i++) {
+      if (this.checkButtonClick(click, this.renderer.getColorSwatchBounds(i))) {
+        this.audio.play('click');
+        this.customization[this.customizeTab].bodyColor = COLOR_PALETTE[i];
+        saveCustomization(this.customization);
+        return;
+      }
+    }
+
+    // Reset color button
+    if (this.checkButtonClick(click, this.renderer.getResetColorBounds())) {
+      this.audio.play('click');
+      this.customization[this.customizeTab].bodyColor = null;
+      saveCustomization(this.customization);
+      return;
+    }
+
+    // Back button
+    if (this.checkButtonClick(click, this.renderer.getCustomizeBackBounds())) {
+      this.audio.play('click');
+      this.state = 'MENU';
+      return;
     }
   }
 
@@ -312,6 +410,10 @@ export class Game {
            a.y + a.h > b.y;
   }
 
+  async refreshCrown() {
+    this.crownRank = await leaderboard.getPlayerRank();
+  }
+
   gameOver() {
     this.audio.play('crash');
     if (this.score > this.highScore) {
@@ -329,7 +431,7 @@ export class Game {
     } else {
       // Returning player — auto-submit
       this.state = 'GAME_OVER';
-      leaderboard.submitScore(this.score);
+      leaderboard.submitScore(this.score).then(() => this.refreshCrown());
     }
   }
 
@@ -387,6 +489,9 @@ export class Game {
       case 'ENTER_NAME':
         this.renderGameOver(ctx);
         break;
+      case 'CUSTOMIZE':
+        this.renderCustomize(ctx);
+        break;
       case 'LEADERBOARD':
         this.renderLeaderboard(ctx);
         break;
@@ -397,7 +502,23 @@ export class Game {
     this.renderer.drawBackground(ctx, this.theme);
     this.renderer.drawParticles(ctx, this.theme);
     this.renderer.drawGround(ctx, this.theme, this.groundOffset);
-    this.renderer.drawMenu(ctx, this.theme, THEMES, THEME_ORDER);
+    this.renderer.drawMenu(ctx, this.theme, THEMES, THEME_ORDER, this.customization);
+    this.renderer.drawMuteButton(ctx, this.audio.isMuted());
+  }
+
+  renderCustomize(ctx) {
+    const tabTheme = THEMES[this.customizeTab];
+    this.renderer.drawBackground(ctx, tabTheme);
+    this.renderer.drawParticles(ctx, tabTheme);
+    this.renderer.drawGround(ctx, tabTheme, this.groundOffset);
+
+    // Create a temporary preview bird centered in the preview area
+    const previewBird = new Bird(200, 190);
+    previewBird.y = 190 + Math.sin(performance.now() * 0.003) * 6;
+    previewBird.wingTimer = performance.now() / 1000;
+    previewBird.wingUp = Math.sin(performance.now() * 0.005) > 0;
+
+    this.renderer.drawCustomizeScreen(ctx, THEMES, THEME_ORDER, this.customization, this.customizeTab, previewBird, this.crownRank);
     this.renderer.drawMuteButton(ctx, this.audio.isMuted());
   }
 
@@ -405,7 +526,7 @@ export class Game {
     this.renderer.drawBackground(ctx, this.theme);
     this.renderer.drawParticles(ctx, this.theme);
     this.renderer.drawGround(ctx, this.theme, this.groundOffset);
-    this.bird.draw(ctx, this.theme);
+    this.bird.draw(ctx, this.theme, this.customization[this.theme.id]);
     this.renderer.drawReady(ctx, this.theme);
     this.renderer.drawMuteButton(ctx, this.audio.isMuted());
   }
@@ -419,7 +540,7 @@ export class Game {
     }
 
     this.renderer.drawGround(ctx, this.theme, this.groundOffset);
-    this.bird.draw(ctx, this.theme);
+    this.bird.draw(ctx, this.theme, this.customization[this.theme.id]);
     this.renderer.drawScore(ctx, this.theme, this.score);
     this.renderer.drawMuteButton(ctx, this.audio.isMuted());
   }
@@ -434,7 +555,7 @@ export class Game {
     }
 
     this.renderer.drawGround(ctx, this.theme, this.groundOffset);
-    this.bird.draw(ctx, this.theme);
+    this.bird.draw(ctx, this.theme, this.customization[this.theme.id]);
 
     this.renderer.drawGameOver(ctx, this.theme, this.score, this.highScore, this.isNewHighScore);
     this.renderer.drawMuteButton(ctx, this.audio.isMuted());

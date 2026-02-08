@@ -115,3 +115,12 @@ export async function fetchTopScores(limit = 50) {
 export function getCurrentPlayerId() {
   return getPlayerId();
 }
+
+// Returns 1, 2, 3 for top 3 players, or null
+export async function getPlayerRank() {
+  if (!db) return null;
+  const id = getPlayerId();
+  const scores = await fetchTopScores(3);
+  const index = scores.findIndex(s => s.id === id);
+  return index >= 0 ? index + 1 : null;
+}

@@ -48,21 +48,36 @@ export class Bird {
     };
   }
 
-  draw(ctx, theme) {
+  draw(ctx, theme, customization) {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.rotation);
 
+    const p = getEffectivePlayer(theme.player, customization);
+    let hatAnchor;
+
     switch (theme.player.type) {
       case 'bird':
-        this.drawBird(ctx, theme.player);
+        this.drawBird(ctx, p);
+        hatAnchor = { x: 3, y: -10 };
         break;
       case 'penguin':
-        this.drawPenguin(ctx, theme.player);
+        this.drawPenguin(ctx, p);
+        hatAnchor = { x: 0, y: -14 };
         break;
       case 'rocket':
-        this.drawRocket(ctx, theme.player);
+        this.drawRocket(ctx, p);
+        hatAnchor = { x: 0, y: -8 };
         break;
+    }
+
+    if (customization && customization.hat && customization.hat !== 'none') {
+      const crownColor = getCrownColor(customization.hat);
+      if (crownColor) {
+        drawCharacterCrown(ctx, hatAnchor.x, hatAnchor.y - 2, crownColor, 1.0);
+      } else {
+        drawHat(ctx, customization.hat, hatAnchor.x, hatAnchor.y, 1.0);
+      }
     }
 
     ctx.restore();
@@ -212,3 +227,107 @@ export class Bird {
     ctx.fill();
   }
 }
+
+function getEffectivePlayer(player, customization) {
+  if (!customization || !customization.bodyColor) return player;
+  return { ...player, bodyColor: customization.bodyColor };
+}
+
+const CROWN_COLORS = {
+  crown_gold: '#FFD700',
+  crown_silver: '#C0C0C0',
+  crown_bronze: '#CD7F32',
+};
+
+export function getCrownColor(hatId) {
+  return CROWN_COLORS[hatId] || null;
+}
+
+export function drawHat(ctx, hatId, ax, ay, s) {
+  switch (hatId) {
+    case 'santa':  drawSantaHat(ctx, ax, ay, s); break;
+    case 'ballcap': drawBallCap(ctx, ax, ay, s); break;
+    case 'mohawk':  drawMohawk(ctx, ax, ay, s); break;
+  }
+}
+
+function drawSantaHat(ctx, ax, ay, s) {
+  // White brim
+  ctx.fillStyle = '#FFFFFF';
+  ctx.beginPath();
+  ctx.ellipse(ax, ay, 10 * s, 3 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Red body
+  ctx.fillStyle = '#CC0000';
+  ctx.beginPath();
+  ctx.moveTo(ax - 8 * s, ay - 1 * s);
+  ctx.lineTo(ax + 8 * s, ay - 1 * s);
+  ctx.lineTo(ax + 4 * s, ay - 14 * s);
+  ctx.closePath();
+  ctx.fill();
+
+  // White pom-pom
+  ctx.fillStyle = '#FFFFFF';
+  ctx.beginPath();
+  ctx.arc(ax + 4 * s, ay - 14 * s, 3 * s, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawBallCap(ctx, ax, ay, s) {
+  // Cap dome
+  ctx.fillStyle = '#2C3E50';
+  ctx.beginPath();
+  ctx.arc(ax, ay - 1 * s, 8 * s, Math.PI, 0);
+  ctx.fill();
+
+  // Brim
+  ctx.fillStyle = '#34495E';
+  ctx.beginPath();
+  ctx.ellipse(ax + 5 * s, ay, 10 * s, 3 * s, 0, Math.PI, 0, true);
+  ctx.fill();
+}
+
+function drawMohawk(ctx, ax, ay, s) {
+  ctx.fillStyle = '#E74C3C';
+  const spikes = 5;
+  for (let i = 0; i < spikes; i++) {
+    const sx = ax - 8 * s + i * 4 * s;
+    const h = (6 + i * 2) * s;
+    ctx.beginPath();
+    ctx.moveTo(sx, ay);
+    ctx.lineTo(sx + 2 * s, ay - h);
+    ctx.lineTo(sx + 4 * s, ay);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+export function drawCharacterCrown(ctx, cx, cy, color, s) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(cx - 8 * s, cy + 2 * s);
+  ctx.lineTo(cx + 8 * s, cy + 2 * s);
+  ctx.lineTo(cx + 7 * s, cy - 2 * s);
+  ctx.lineTo(cx + 8 * s, cy - 6 * s);
+  ctx.lineTo(cx + 4 * s, cy - 3 * s);
+  ctx.lineTo(cx, cy - 7 * s);
+  ctx.lineTo(cx - 4 * s, cy - 3 * s);
+  ctx.lineTo(cx - 8 * s, cy - 6 * s);
+  ctx.lineTo(cx - 7 * s, cy - 2 * s);
+  ctx.closePath();
+  ctx.fill();
+
+  // Gem dots
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.beginPath();
+  ctx.arc(cx, cy - 1 * s, 1.2 * s, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// Hat anchor points for mini characters in renderer
+export const HAT_ANCHORS = {
+  bird:    { x: 2, y: -7 },
+  penguin: { x: 0, y: -11 },
+  rocket:  { x: 0, y: -6 },
+};
