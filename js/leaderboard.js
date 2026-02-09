@@ -1,4 +1,3 @@
-const PLAYER_ID_KEY = 'flappy_player_id';
 const PLAYER_NAME_KEY = 'flappy_player_name';
 const COOKIE_DAYS = 365;
 
@@ -46,13 +45,9 @@ function writeValue(key, value) {
 
 // --- Player identity ---
 
-function getPlayerId() {
-  let id = readValue(PLAYER_ID_KEY);
-  if (!id) {
-    id = crypto.randomUUID();
-    writeValue(PLAYER_ID_KEY, id);
-  }
-  return id;
+function getNameKey() {
+  const name = getPlayerName();
+  return name ? name.trim().toLowerCase().replace(/[.#$\[\]/]/g, '') : null;
 }
 
 export function hasPlayerName() {
@@ -71,15 +66,14 @@ export function setPlayerName(name) {
 
 export async function submitScore(score) {
   if (!db) return;
-  const id = getPlayerId();
   const name = getPlayerName();
   if (!name) return;
+  const key = getNameKey();
 
-  // Refresh cookies on each submit
-  writeValue(PLAYER_ID_KEY, id);
+  // Refresh cookie on each submit
   writeValue(PLAYER_NAME_KEY, name);
 
-  const ref = db.ref('leaderboard/' + id);
+  const ref = db.ref('leaderboard/' + key);
   const snapshot = await ref.once('value');
   const existing = snapshot.val();
 
@@ -113,13 +107,13 @@ export async function fetchTopScores(limit = 50) {
 }
 
 export function getCurrentPlayerId() {
-  return getPlayerId();
+  return getNameKey();
 }
 
 // Returns 1, 2, 3 for top 3 players, or null
 export async function getPlayerRank() {
   if (!db) return null;
-  const id = getPlayerId();
+  const id = getNameKey();
   const scores = await fetchTopScores(3);
   const index = scores.findIndex(s => s.id === id);
   return index >= 0 ? index + 1 : null;
