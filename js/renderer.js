@@ -1,6 +1,6 @@
-import { getHighScore } from './storage.js?v=6';
-import { drawHat, drawCharacterCrown, getCrownColor, HAT_ANCHORS } from './bird.js?v=6';
-import { HATS, HAT_ORDER, CROWN_ORDER, COLOR_PALETTE } from './customization.js?v=6';
+import { getHighScore } from './storage.js';
+import { drawHat, drawCharacterCrown, getCrownColor, HAT_ANCHORS } from './bird.js';
+import { HATS, HAT_ORDER, CROWN_ORDER, COLOR_PALETTE } from './customization.js';
 
 export class Renderer {
   constructor(width, height) {
