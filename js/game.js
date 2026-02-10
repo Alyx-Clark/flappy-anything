@@ -1,12 +1,12 @@
-import { THEMES, THEME_ORDER } from './themes.js';
-import { Bird } from './bird.js';
-import { PipePair } from './pipe.js';
-import { Renderer } from './renderer.js';
-import { saveScore, getHighScore, getBestScore } from './storage.js';
-import { AudioManager } from './audio.js';
-import * as leaderboard from './leaderboard.js';
-import * as auth from './auth.js';
-import { loadCustomization, saveCustomization, HATS, HAT_ORDER, CROWN_ORDER, COLOR_PALETTE } from './customization.js';
+import { THEMES, THEME_ORDER } from './themes.js?v=6';
+import { Bird } from './bird.js?v=6';
+import { PipePair } from './pipe.js?v=6';
+import { Renderer } from './renderer.js?v=6';
+import { saveScore, getHighScore, getBestScore } from './storage.js?v=6';
+import { AudioManager } from './audio.js?v=6';
+import * as leaderboard from './leaderboard.js?v=6';
+import * as auth from './auth.js?v=6';
+import { loadCustomization, saveCustomization, HATS, HAT_ORDER, CROWN_ORDER, COLOR_PALETTE } from './customization.js?v=6';
 
 const PIPE_SPEED = 150;
 const PIPE_SPACING = 200;

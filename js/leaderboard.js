@@ -1,4 +1,4 @@
-import * as auth from './auth.js';
+import * as auth from './auth.js?v=6';
 
 const PLAYER_NAME_KEY = 'flappy_player_name';
 

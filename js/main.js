@@ -1,7 +1,7 @@
-import { Game } from './game.js';
-import { InputHandler } from './input.js';
-import { init as initAuth } from './auth.js';
-import { init as initLeaderboard } from './leaderboard.js';
+import { Game } from './game.js?v=6';
+import { InputHandler } from './input.js?v=6';
+import { init as initAuth } from './auth.js?v=6';
+import { init as initLeaderboard } from './leaderboard.js?v=6';
 
 // TODO: Replace with your Firebase project config
 const firebaseConfig = {
