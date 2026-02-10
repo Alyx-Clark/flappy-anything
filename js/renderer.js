@@ -245,7 +245,7 @@ export class Renderer {
 
   // --- Menu ---
 
-  drawMenu(ctx, activeTheme, allThemes, themeOrder, customization) {
+  drawMenu(ctx, activeTheme, allThemes, themeOrder, customization, isSignedIn, displayName) {
     // Title
     ctx.save();
     ctx.font = 'bold 32px Arial, sans-serif';
@@ -283,9 +283,16 @@ export class Renderer {
       this.drawThemeCard(ctx, theme, startX, y, cardWidth, cardHeight, customization);
     }
 
-    // Bottom buttons (side by side)
+    // Bottom buttons (three side by side)
     this.drawMenuButton(ctx, this.getCustomizeButtonBounds(), 'Customize');
     this.drawMenuButton(ctx, this.getLeaderboardButtonBounds(), 'Leaderboard');
+
+    // Auth button — show truncated display name when signed in
+    let authLabel = 'Sign In';
+    if (isSignedIn && displayName) {
+      authLabel = displayName.length > 10 ? displayName.substring(0, 9) + '\u2026' : displayName;
+    }
+    this.drawMenuButton(ctx, this.getAuthButtonBounds(), authLabel);
   }
 
   drawMenuButton(ctx, bounds, label) {
@@ -306,11 +313,15 @@ export class Renderer {
   }
 
   getCustomizeButtonBounds() {
-    return { x: 20, y: 502, w: 170, h: 32 };
+    return { x: 12, y: 502, w: 120, h: 32 };
   }
 
   getLeaderboardButtonBounds() {
-    return { x: 210, y: 502, w: 170, h: 32 };
+    return { x: 140, y: 502, w: 120, h: 32 };
+  }
+
+  getAuthButtonBounds() {
+    return { x: 268, y: 502, w: 120, h: 32 };
   }
 
   drawThemeCard(ctx, theme, x, y, w, h, customization) {
@@ -1107,7 +1118,7 @@ export class Renderer {
 
   // --- Game Over ---
 
-  drawGameOver(ctx, theme, score, highScore, isNew) {
+  drawGameOver(ctx, theme, score, highScore, isNew, isSignedIn) {
     // Dark overlay
     ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
     ctx.fillRect(0, 0, this.width, this.height);
@@ -1159,6 +1170,13 @@ export class Renderer {
     let hsText = `Best: ${highScore}`;
     if (isNew) hsText += '  NEW!';
     ctx.fillText(hsText, this.width / 2, panelY + 155);
+
+    // Sign-in hint when not authenticated
+    if (!isSignedIn) {
+      ctx.font = '13px Arial, sans-serif';
+      ctx.fillStyle = 'rgba(243, 156, 18, 0.8)';
+      ctx.fillText('Sign in to save to leaderboard', this.width / 2, panelY + 180);
+    }
 
     // Tap to play again
     const alpha = 0.5 + 0.5 * Math.sin(performance.now() * 0.004);

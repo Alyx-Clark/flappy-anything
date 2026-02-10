@@ -5,6 +5,7 @@ import { Renderer } from './renderer.js';
 import { saveScore, getHighScore } from './storage.js';
 import { AudioManager } from './audio.js';
 import * as leaderboard from './leaderboard.js';
+import * as auth from './auth.js';
 import { loadCustomization, saveCustomization, HATS, HAT_ORDER, CROWN_ORDER, COLOR_PALETTE } from './customization.js';
 
 const PIPE_SPEED = 150;
@@ -45,31 +46,181 @@ export class Game {
     // Leaderboard
     this.leaderboardScores = [];
     this.leaderboardScroll = 0;
-    this.pendingScore = 0;
 
-    // Name entry overlay
-    this.nameOverlay = document.getElementById('name-overlay');
-    this.nameInput = document.getElementById('name-input');
-    this.nameSubmit = document.getElementById('name-submit');
-    this.setupNameEntry();
+    // Auth UI
+    this.setupAuthUI();
+
+    // Refresh crown when auth state changes
+    auth.onAuthChange(() => this.refreshCrown());
   }
 
-  setupNameEntry() {
-    const submit = () => {
-      const name = this.nameInput.value.trim();
-      if (!name) return;
-      leaderboard.setPlayerName(name);
-      this.nameOverlay.classList.add('hidden');
-      this.nameInput.value = '';
-      leaderboard.submitScore(this.pendingScore).then(() => this.refreshCrown());
-      this.state = 'GAME_OVER';
-    };
+  setupAuthUI() {
+    // Auth overlay elements
+    this.authOverlay = document.getElementById('auth-overlay');
+    this.authTitle = document.getElementById('auth-title');
+    this.authError = document.getElementById('auth-error');
+    this.authName = document.getElementById('auth-name');
+    this.authEmail = document.getElementById('auth-email');
+    this.authPassword = document.getElementById('auth-password');
+    this.authSubmit = document.getElementById('auth-submit');
+    this.authToggle = document.getElementById('auth-toggle');
+    this.authForgot = document.getElementById('auth-forgot');
+    this.authCancel = document.getElementById('auth-cancel');
 
-    this.nameSubmit.addEventListener('click', submit);
-    this.nameInput.addEventListener('keydown', (e) => {
+    // Account overlay elements
+    this.accountOverlay = document.getElementById('account-overlay');
+    this.accountName = document.getElementById('account-name');
+    this.accountEmail = document.getElementById('account-email');
+    this.accountSignout = document.getElementById('account-signout');
+    this.accountClose = document.getElementById('account-close');
+
+    this.authMode = 'signin'; // 'signin' or 'signup'
+
+    // Prevent game input from form fields
+    const stopProp = (e) => e.stopPropagation();
+    this.authEmail.addEventListener('keydown', stopProp);
+    this.authPassword.addEventListener('keydown', stopProp);
+    this.authName.addEventListener('keydown', stopProp);
+
+    // Submit on Enter from password field
+    this.authPassword.addEventListener('keydown', (e) => {
       e.stopPropagation();
-      if (e.key === 'Enter') submit();
+      if (e.key === 'Enter') this.handleAuthSubmit();
     });
+
+    // Submit button
+    this.authSubmit.addEventListener('click', () => this.handleAuthSubmit());
+
+    // Toggle between sign-in and sign-up
+    this.authToggle.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.authMode = this.authMode === 'signin' ? 'signup' : 'signin';
+      this.updateAuthForm();
+    });
+
+    // Forgot password
+    this.authForgot.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const email = this.authEmail.value.trim();
+      if (!email) {
+        this.authError.textContent = 'Enter your email first';
+        return;
+      }
+      try {
+        await auth.resetPassword(email);
+        this.authError.style.color = '#2ecc71';
+        this.authError.textContent = 'Reset email sent!';
+        setTimeout(() => { this.authError.style.color = ''; }, 3000);
+      } catch (err) {
+        this.authError.textContent = this.friendlyError(err.code);
+      }
+    });
+
+    // Cancel
+    this.authCancel.addEventListener('click', () => {
+      this.authOverlay.classList.add('hidden');
+      this.clearAuthForm();
+    });
+
+    // Account overlay
+    this.accountSignout.addEventListener('click', async () => {
+      await auth.signOut();
+      this.accountOverlay.classList.add('hidden');
+    });
+
+    this.accountClose.addEventListener('click', () => {
+      this.accountOverlay.classList.add('hidden');
+    });
+  }
+
+  updateAuthForm() {
+    if (this.authMode === 'signup') {
+      this.authTitle.textContent = 'Sign Up';
+      this.authSubmit.textContent = 'Sign Up';
+      this.authToggle.textContent = 'Already have an account? Sign In';
+      this.authName.classList.remove('hidden');
+      this.authPassword.autocomplete = 'new-password';
+    } else {
+      this.authTitle.textContent = 'Sign In';
+      this.authSubmit.textContent = 'Sign In';
+      this.authToggle.textContent = 'Need an account? Sign Up';
+      this.authName.classList.add('hidden');
+      this.authPassword.autocomplete = 'current-password';
+    }
+    this.authError.textContent = '';
+  }
+
+  clearAuthForm() {
+    this.authEmail.value = '';
+    this.authPassword.value = '';
+    this.authName.value = '';
+    this.authError.textContent = '';
+    this.authMode = 'signin';
+    this.updateAuthForm();
+  }
+
+  async handleAuthSubmit() {
+    const email = this.authEmail.value.trim();
+    const password = this.authPassword.value;
+    this.authError.textContent = '';
+
+    if (!email || !password) {
+      this.authError.textContent = 'Email and password required';
+      return;
+    }
+
+    try {
+      if (this.authMode === 'signup') {
+        const displayName = this.authName.value.trim();
+        if (!displayName) {
+          this.authError.textContent = 'Display name required';
+          return;
+        }
+        const user = await auth.signUp(email, password, displayName);
+        this.authOverlay.classList.add('hidden');
+        this.clearAuthForm();
+
+        // Attempt migration if localStorage has a matching name
+        const storedName = leaderboard.getStoredLocalName();
+        if (storedName && storedName.trim().toLowerCase() === displayName.trim().toLowerCase()) {
+          await leaderboard.migrateNameEntryToUid(user.uid, displayName);
+        }
+      } else {
+        await auth.signIn(email, password);
+        this.authOverlay.classList.add('hidden');
+        this.clearAuthForm();
+      }
+      this.refreshCrown();
+    } catch (err) {
+      this.authError.textContent = this.friendlyError(err.code);
+    }
+  }
+
+  friendlyError(code) {
+    switch (code) {
+      case 'auth/email-already-in-use': return 'Email already in use';
+      case 'auth/invalid-email': return 'Invalid email address';
+      case 'auth/weak-password': return 'Password must be 6+ characters';
+      case 'auth/user-not-found': return 'No account with that email';
+      case 'auth/wrong-password': return 'Incorrect password';
+      case 'auth/invalid-credential': return 'Invalid email or password';
+      case 'auth/too-many-requests': return 'Too many attempts, try later';
+      default: return 'Something went wrong';
+    }
+  }
+
+  openAuthOverlay() {
+    this.clearAuthForm();
+    this.authOverlay.classList.remove('hidden');
+    this.authEmail.focus();
+  }
+
+  openAccountOverlay() {
+    const user = auth.getCurrentUser();
+    if (!user) return;
+    this.accountName.textContent = user.displayName || 'Player';
+    this.accountEmail.textContent = user.email;
+    this.accountOverlay.classList.remove('hidden');
   }
 
   start() {
@@ -102,10 +253,6 @@ export class Game {
         break;
       case 'GAME_OVER':
         this.updateGameOver();
-        break;
-      case 'ENTER_NAME':
-        this.input.consumeClick();
-        this.input.consumeFlap();
         break;
       case 'CUSTOMIZE':
         this.updateCustomize(dt);
@@ -162,6 +309,17 @@ export class Game {
     if (this.checkButtonClick(click, this.renderer.getLeaderboardButtonBounds())) {
       this.audio.play('click');
       this.openLeaderboard();
+      return;
+    }
+
+    // Auth button
+    if (this.checkButtonClick(click, this.renderer.getAuthButtonBounds())) {
+      this.audio.play('click');
+      if (auth.isSignedIn()) {
+        this.openAccountOverlay();
+      } else {
+        this.openAuthOverlay();
+      }
       return;
     }
 
@@ -421,16 +579,9 @@ export class Game {
       this.isNewHighScore = true;
     }
     saveScore(this.theme.id, this.score);
+    this.state = 'GAME_OVER';
 
-    if (!leaderboard.hasPlayerName()) {
-      // First time — prompt for name
-      this.pendingScore = this.score;
-      this.state = 'ENTER_NAME';
-      this.nameOverlay.classList.remove('hidden');
-      this.nameInput.focus();
-    } else {
-      // Returning player — auto-submit
-      this.state = 'GAME_OVER';
+    if (auth.isSignedIn()) {
       leaderboard.submitScore(this.score).then(() => this.refreshCrown());
     }
   }
@@ -486,9 +637,6 @@ export class Game {
       case 'GAME_OVER':
         this.renderGameOver(ctx);
         break;
-      case 'ENTER_NAME':
-        this.renderGameOver(ctx);
-        break;
       case 'CUSTOMIZE':
         this.renderCustomize(ctx);
         break;
@@ -502,7 +650,7 @@ export class Game {
     this.renderer.drawBackground(ctx, this.theme);
     this.renderer.drawParticles(ctx, this.theme);
     this.renderer.drawGround(ctx, this.theme, this.groundOffset);
-    this.renderer.drawMenu(ctx, this.theme, THEMES, THEME_ORDER, this.customization);
+    this.renderer.drawMenu(ctx, this.theme, THEMES, THEME_ORDER, this.customization, auth.isSignedIn(), auth.getDisplayName());
     this.renderer.drawMuteButton(ctx, this.audio.isMuted());
   }
 
@@ -557,7 +705,7 @@ export class Game {
     this.renderer.drawGround(ctx, this.theme, this.groundOffset);
     this.bird.draw(ctx, this.theme, this.customization[this.theme.id]);
 
-    this.renderer.drawGameOver(ctx, this.theme, this.score, this.highScore, this.isNewHighScore);
+    this.renderer.drawGameOver(ctx, this.theme, this.score, this.highScore, this.isNewHighScore, auth.isSignedIn());
     this.renderer.drawMuteButton(ctx, this.audio.isMuted());
   }
 

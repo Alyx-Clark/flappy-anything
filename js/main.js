@@ -1,5 +1,6 @@
 import { Game } from './game.js';
 import { InputHandler } from './input.js';
+import { init as initAuth } from './auth.js';
 import { init as initLeaderboard } from './leaderboard.js';
 
 // TODO: Replace with your Firebase project config
@@ -13,7 +14,9 @@ const firebaseConfig = {
   measurementId: "G-WD71JLLYC5"
 };
 
-initLeaderboard(firebaseConfig);
+firebase.initializeApp(firebaseConfig);
+initAuth();
+initLeaderboard();
 
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');

@@ -1,0 +1,11 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "leaderboard": {
+      ".read": true,
+      ".write": "auth != null",
+      ".indexOn": ["score"]
+    }
+  }
+}
