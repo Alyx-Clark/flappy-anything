@@ -2,7 +2,7 @@ import { THEMES, THEME_ORDER } from './themes.js';
 import { Bird } from './bird.js';
 import { PipePair } from './pipe.js';
 import { Renderer } from './renderer.js';
-import { saveScore, getHighScore } from './storage.js';
+import { saveScore, getHighScore, getBestScore } from './storage.js';
 import { AudioManager } from './audio.js';
 import * as leaderboard from './leaderboard.js';
 import * as auth from './auth.js';
@@ -50,8 +50,19 @@ export class Game {
     // Auth UI
     this.setupAuthUI();
 
-    // Refresh crown when auth state changes
-    auth.onAuthChange(() => this.refreshCrown());
+    // Sync local scores and refresh crown when signing in
+    auth.onAuthChange((user) => {
+      if (user) {
+        const best = getBestScore();
+        if (best > 0) {
+          leaderboard.submitScore(best).then(() => this.refreshCrown());
+        } else {
+          this.refreshCrown();
+        }
+      } else {
+        this.refreshCrown();
+      }
+    });
   }
 
   setupAuthUI() {

@@ -57,3 +57,12 @@ export function getHighScore(themeId) {
   const scores = loadAllScores();
   return scores[themeId] || 0;
 }
+
+export function getBestScore() {
+  const scores = loadAllScores();
+  let best = 0;
+  for (const id in scores) {
+    if (scores[id] > best) best = scores[id];
+  }
+  return best;
+}
