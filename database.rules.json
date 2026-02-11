@@ -6,6 +6,20 @@
       ".read": true,
       ".write": "auth != null",
       ".indexOn": ["score"]
+    },
+    "lobbies": {
+      "$lobbyCode": {
+        ".read": "auth != null",
+        ".write": "auth != null && data.child('meta/hostUid').val() === auth.uid && !newData.exists()",
+        "meta": {
+          ".write": "auth != null && (!data.exists() || data.child('hostUid').val() === auth.uid)"
+        },
+        "players": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid"
+          }
+        }
+      }
     }
   }
 }

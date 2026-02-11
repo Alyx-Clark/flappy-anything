@@ -1,11 +1,11 @@
 export class PipePair {
-  constructor(x, gapCenter, gapSize, width) {
+  constructor(x, gapCenter, gapSize, width, seed) {
     this.x = x;
     this.gapTop = gapCenter - gapSize / 2;
     this.gapBottom = gapCenter + gapSize / 2;
     this.width = width;
     this.scored = false;
-    this.seed = Math.floor(Math.random() * 10000);
+    this.seed = seed !== undefined ? seed : Math.floor(Math.random() * 10000);
   }
 
   update(dt, speed) {

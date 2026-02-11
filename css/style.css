@@ -165,3 +165,35 @@ canvas {
 #auth-name.hidden {
   display: none;
 }
+
+/* Lobby overlay */
+#lobby-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10;
+}
+
+#lobby-overlay.hidden {
+  display: none;
+}
+
+.lobby-code {
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  font-size: 18px !important;
+  font-weight: bold;
+}
+
+.lobby-divider {
+  color: rgba(255, 255, 255, 0.5);
+  font-family: Arial, sans-serif;
+  font-size: 13px;
+  margin: 12px 0;
+}

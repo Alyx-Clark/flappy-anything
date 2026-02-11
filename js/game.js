@@ -6,6 +6,8 @@ import { saveScore, getHighScore, getBestScore } from './storage.js';
 import { AudioManager } from './audio.js';
 import * as leaderboard from './leaderboard.js';
 import * as auth from './auth.js';
+import * as lobby from './lobby.js';
+import { MultiplayerSession } from './multiplayer.js';
 import { loadCustomization, saveCustomization, HATS, HAT_ORDER, CROWN_ORDER, COLOR_PALETTE } from './customization.js';
 
 const PIPE_SPEED = 150;
@@ -47,8 +49,19 @@ export class Game {
     this.leaderboardScores = [];
     this.leaderboardScroll = 0;
 
+    // Multiplayer
+    this.mpSession = null;
+    this.mpCountdown = 0;
+    this.mpCountdownStart = 0;
+    this.mpIsHost = false;
+    this.mpPlayers = {};
+    this.mpMeta = null;
+    this.mpLocalAlive = true;
+    this.mpPlacements = [];
+
     // Auth UI
     this.setupAuthUI();
+    this.setupLobbyUI();
 
     // Sync local scores and refresh crown when signing in
     auth.onAuthChange((user) => {
@@ -271,6 +284,18 @@ export class Game {
       case 'LEADERBOARD':
         this.updateLeaderboard(dt);
         break;
+      case 'MP_LOBBY':
+        this.updateMpLobby(dt);
+        break;
+      case 'MP_COUNTDOWN':
+        this.updateMpCountdown(dt);
+        break;
+      case 'MP_PLAYING':
+        this.updateMpPlaying(dt);
+        break;
+      case 'MP_GAME_OVER':
+        this.updateMpGameOver(dt);
+        break;
     }
   }
 
@@ -313,6 +338,17 @@ export class Game {
       this.audio.play('click');
       this.renderer.initParticles(THEMES[this.customizeTab]);
       this.state = 'CUSTOMIZE';
+      return;
+    }
+
+    // Multiplayer button
+    if (this.checkButtonClick(click, this.renderer.getMultiplayerButtonBounds())) {
+      this.audio.play('click');
+      if (!auth.isSignedIn()) {
+        this.openAuthOverlay();
+      } else {
+        this.openLobbyOverlay();
+      }
       return;
     }
 
@@ -654,6 +690,18 @@ export class Game {
       case 'LEADERBOARD':
         this.renderLeaderboard(ctx);
         break;
+      case 'MP_LOBBY':
+        this.renderMpLobby(ctx);
+        break;
+      case 'MP_COUNTDOWN':
+        this.renderMpCountdown(ctx);
+        break;
+      case 'MP_PLAYING':
+        this.renderMpPlaying(ctx);
+        break;
+      case 'MP_GAME_OVER':
+        this.renderMpGameOver(ctx);
+        break;
     }
   }
 
@@ -726,5 +774,394 @@ export class Game {
     this.renderer.drawGround(ctx, this.theme, this.groundOffset);
     this.renderer.drawLeaderboard(ctx, this.theme, this.leaderboardScores, leaderboard.getCurrentPlayerId(), this.leaderboardScroll);
     this.renderer.drawMuteButton(ctx, this.audio.isMuted());
+  }
+
+  // ==========================================
+  // MULTIPLAYER
+  // ==========================================
+
+  setupLobbyUI() {
+    this.lobbyOverlay = document.getElementById('lobby-overlay');
+    this.lobbyError = document.getElementById('lobby-error');
+    this.lobbyCodeInput = document.getElementById('lobby-code-input');
+    this.lobbyCreateBtn = document.getElementById('lobby-create');
+    this.lobbyJoinBtn = document.getElementById('lobby-join');
+    this.lobbyCancelBtn = document.getElementById('lobby-cancel');
+
+    // Prevent game input from form fields
+    const stopProp = (e) => e.stopPropagation();
+    this.lobbyCodeInput.addEventListener('keydown', stopProp);
+
+    // Enter to join from code input
+    this.lobbyCodeInput.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') this.handleJoinLobby();
+    });
+
+    this.lobbyCreateBtn.addEventListener('click', () => this.handleCreateLobby());
+    this.lobbyJoinBtn.addEventListener('click', () => this.handleJoinLobby());
+    this.lobbyCancelBtn.addEventListener('click', () => {
+      this.lobbyOverlay.classList.add('hidden');
+      this.lobbyError.textContent = '';
+      this.lobbyCodeInput.value = '';
+    });
+  }
+
+  openLobbyOverlay() {
+    this.lobbyError.textContent = '';
+    this.lobbyCodeInput.value = '';
+    this.lobbyOverlay.classList.remove('hidden');
+  }
+
+  async handleCreateLobby() {
+    this.lobbyError.textContent = '';
+    const code = await lobby.createLobby(this.theme.id, this.customization);
+    if (!code) {
+      this.lobbyError.textContent = 'Failed to create lobby';
+      return;
+    }
+    this.lobbyOverlay.classList.add('hidden');
+    this.mpIsHost = true;
+    this.enterMpLobby(code);
+  }
+
+  async handleJoinLobby() {
+    this.lobbyError.textContent = '';
+    const code = this.lobbyCodeInput.value.trim().toUpperCase();
+    if (code.length !== 6) {
+      this.lobbyError.textContent = 'Code must be 6 characters';
+      return;
+    }
+    const ok = await lobby.joinLobby(code, this.customization);
+    if (!ok) {
+      this.lobbyError.textContent = 'Lobby not found or already started';
+      return;
+    }
+    this.lobbyOverlay.classList.add('hidden');
+    this.mpIsHost = false;
+    this.enterMpLobby(code);
+  }
+
+  enterMpLobby(code) {
+    this.mpPlayers = {};
+    this.mpMeta = null;
+    this.state = 'MP_LOBBY';
+
+    lobby.onLobbyChange((type, data) => {
+      if (type === 'meta') {
+        this.mpMeta = data;
+        if (data) {
+          // Update theme if host changed it
+          if (THEMES[data.themeId]) {
+            this.theme = THEMES[data.themeId];
+            this.renderer.initParticles(this.theme);
+          }
+          // Check if host is us
+          const user = auth.getCurrentUser();
+          if (user) this.mpIsHost = data.hostUid === user.uid;
+
+          // State transitions triggered by meta changes
+          if (data.status === 'countdown' && this.state === 'MP_LOBBY') {
+            this.startMpCountdown(data.startTime);
+          }
+        }
+      } else if (type === 'players') {
+        this.mpPlayers = data || {};
+      }
+    });
+  }
+
+  // --- MP_LOBBY ---
+
+  updateMpLobby(dt) {
+    this.groundOffset += PIPE_SPEED * 0.3 * dt;
+
+    const click = this.input.consumeClick();
+    this.input.consumeFlap();
+    if (!click) return;
+
+    if (this.checkMuteClick(click)) {
+      this.audio.toggleMute();
+      return;
+    }
+
+    // Leave button
+    if (this.checkButtonClick(click, this.renderer.getMpLobbyLeaveBounds())) {
+      this.audio.play('click');
+      lobby.leaveLobby();
+      this.state = 'MENU';
+      return;
+    }
+
+    // Host-only: Start button
+    if (this.mpIsHost) {
+      const playerCount = Object.keys(this.mpPlayers).length;
+      if (playerCount >= 2 && this.checkButtonClick(click, this.renderer.getMpLobbyStartBounds())) {
+        this.audio.play('click');
+        lobby.startGame();
+        return;
+      }
+
+      // Theme arrows
+      if (this.checkButtonClick(click, this.renderer.getMpLobbyThemeLeftBounds())) {
+        this.audio.play('click');
+        this.cycleMpTheme(-1);
+        return;
+      }
+      if (this.checkButtonClick(click, this.renderer.getMpLobbyThemeRightBounds())) {
+        this.audio.play('click');
+        this.cycleMpTheme(1);
+        return;
+      }
+    }
+  }
+
+  cycleMpTheme(dir) {
+    const currentIdx = THEME_ORDER.indexOf(this.theme.id);
+    const newIdx = (currentIdx + dir + THEME_ORDER.length) % THEME_ORDER.length;
+    const newThemeId = THEME_ORDER[newIdx];
+    lobby.setLobbyTheme(newThemeId);
+  }
+
+  renderMpLobby(ctx) {
+    this.renderer.drawBackground(ctx, this.theme);
+    this.renderer.drawParticles(ctx, this.theme);
+    this.renderer.drawGround(ctx, this.theme, this.groundOffset);
+    this.renderer.drawMpLobby(ctx, this.theme, lobby.getCurrentCode() || '------', this.mpPlayers, this.mpIsHost, this.theme.id);
+    this.renderer.drawMuteButton(ctx, this.audio.isMuted());
+  }
+
+  // --- MP_COUNTDOWN ---
+
+  startMpCountdown(serverStartTime) {
+    this.state = 'MP_COUNTDOWN';
+    this.mpCountdownStart = serverStartTime;
+    this.mpCountdown = 3;
+
+    // Set up theme + audio
+    if (this.mpMeta && THEMES[this.mpMeta.themeId]) {
+      this.theme = THEMES[this.mpMeta.themeId];
+      this.audio.setTheme(this.theme);
+      this.renderer.initParticles(this.theme);
+    }
+
+    // Initialize bird for ready position
+    this.bird = new Bird(BIRD_X, this.height / 2);
+    this.pipes = [];
+    this.score = 0;
+    this.groundOffset = 0;
+  }
+
+  updateMpCountdown(dt) {
+    this.groundOffset += PIPE_SPEED * 0.3 * dt;
+    this.input.consumeClick();
+    this.input.consumeFlap();
+
+    // Bird hovers
+    this.bird.y = this.height / 2 + Math.sin(performance.now() * 0.003) * 8;
+
+    // Calculate countdown from server timestamp
+    const elapsed = Date.now() - this.mpCountdownStart;
+    const remaining = 3 - Math.floor(elapsed / 1000);
+    this.mpCountdown = remaining;
+
+    if (remaining <= 0 && elapsed >= 3500) {
+      this.startMpPlaying();
+    }
+  }
+
+  renderMpCountdown(ctx) {
+    this.renderer.drawBackground(ctx, this.theme);
+    this.renderer.drawParticles(ctx, this.theme);
+    this.renderer.drawGround(ctx, this.theme, this.groundOffset);
+    this.bird.draw(ctx, this.theme, this.customization[this.theme.id]);
+    this.renderer.drawMpCountdown(ctx, this.theme, this.mpCountdown);
+    this.renderer.drawMuteButton(ctx, this.audio.isMuted());
+  }
+
+  // --- MP_PLAYING ---
+
+  startMpPlaying() {
+    this.state = 'MP_PLAYING';
+    this.mpLocalAlive = true;
+
+    // Create multiplayer session
+    const seed = this.mpMeta ? this.mpMeta.seed : 12345;
+    const user = auth.getCurrentUser();
+    this.mpSession = new MultiplayerSession(seed, user.uid);
+    this.mpSession.setGameStartTime(this.mpCountdownStart + 3500);
+    this.mpSession.initRemotePlayers(this.mpPlayers, this.theme.id);
+
+    // Set playing status if host
+    if (this.mpIsHost) {
+      lobby.setLobbyPlaying();
+    }
+
+    // Reset bird
+    this.bird = new Bird(BIRD_X, this.height / 2);
+    this.bird.flap();
+    this.audio.play('flap');
+    this.pipes = [];
+    this.score = 0;
+    this.groundOffset = 0;
+
+    // Spawn first pipe
+    this.spawnMultiplayerPipe(this.width + 100);
+  }
+
+  updateMpPlaying(dt) {
+    const click = this.input.consumeClick();
+    if (this.checkMuteClick(click)) {
+      this.audio.toggleMute();
+      this.input.consumeFlap();
+    }
+
+    // Update remote player data from Firebase
+    this.mpSession.updateFromFirebase(this.mpPlayers);
+
+    // Local bird input + physics
+    if (this.mpLocalAlive) {
+      if (this.input.consumeFlap()) {
+        this.bird.flap();
+        this.audio.play('flap');
+        this.mpSession.reportLocalFlap();
+      }
+
+      this.bird.update(dt);
+
+      // Push state snapshot at 5 Hz
+      this.mpSession.pushLocalState(this.bird, this.score);
+
+      // Collision check
+      if (this.checkCollision()) {
+        this.mpLocalAlive = false;
+        this.audio.play('crash');
+        this.mpSession.reportLocalCrash(this.score);
+      }
+    } else {
+      this.input.consumeFlap();
+    }
+
+    // Remote birds
+    this.mpSession.updateRemoteBirds(dt);
+
+    // Pipes
+    this.groundOffset += PIPE_SPEED * dt;
+    for (const pipe of this.pipes) {
+      pipe.update(dt, PIPE_SPEED);
+    }
+    this.pipes = this.pipes.filter(p => !p.isOffScreen());
+
+    // Spawn new pipes deterministically
+    if (this.pipes.length === 0 || this.pipes[this.pipes.length - 1].x < this.width - PIPE_SPACING) {
+      this.spawnMultiplayerPipe(this.width);
+    }
+
+    // Score (local only)
+    if (this.mpLocalAlive) {
+      for (const pipe of this.pipes) {
+        if (!pipe.scored && pipe.x + pipe.width < this.bird.x) {
+          pipe.scored = true;
+          this.score++;
+          this.audio.play('score');
+        }
+      }
+    }
+
+    // Check game end: <=1 alive
+    const alivePlayers = this.mpSession.getAlivePlayers(this.mpLocalAlive);
+    if (alivePlayers.length <= 1) {
+      this.endMpGame();
+    }
+  }
+
+  spawnMultiplayerPipe(x) {
+    const r = this.mpSession.rng.next();
+    const gapCenter = MIN_GAP_CENTER + r * (MAX_GAP_CENTER - MIN_GAP_CENTER);
+    const pipeSeed = Math.floor(this.mpSession.rng.next() * 10000);
+    this.pipes.push(new PipePair(x, gapCenter, GAP_SIZE, this.theme.pipe.width, pipeSeed));
+  }
+
+  renderMpPlaying(ctx) {
+    this.renderer.drawBackground(ctx, this.theme);
+    this.renderer.drawParticles(ctx, this.theme);
+
+    for (const pipe of this.pipes) {
+      pipe.draw(ctx, this.theme, this.height);
+    }
+
+    this.renderer.drawGround(ctx, this.theme, this.groundOffset);
+
+    // Draw remote ghost players
+    if (this.mpSession) {
+      for (const uid of Object.keys(this.mpSession.remotePlayers)) {
+        const rp = this.mpSession.remotePlayers[uid];
+        if (!rp.alive) continue;
+        this.renderer.drawGhostPlayer(ctx, rp.bird, this.theme, rp.customization, rp.displayName);
+      }
+    }
+
+    // Draw local bird
+    if (this.mpLocalAlive) {
+      this.bird.draw(ctx, this.theme, this.customization[this.theme.id]);
+    }
+
+    // HUD
+    this.renderer.drawMpHud(ctx, this.mpPlayers, auth.getCurrentUser()?.uid);
+    this.renderer.drawMuteButton(ctx, this.audio.isMuted());
+  }
+
+  // --- MP_GAME_OVER ---
+
+  endMpGame() {
+    this.state = 'MP_GAME_OVER';
+    this.mpPlacements = this.mpSession.buildPlacements(this.mpPlayers);
+
+    if (this.mpIsHost) {
+      lobby.finishGame();
+    }
+  }
+
+  updateMpGameOver(dt) {
+    this.groundOffset += PIPE_SPEED * 0.3 * dt;
+
+    const click = this.input.consumeClick();
+    this.input.consumeFlap();
+    if (!click) return;
+
+    if (this.checkMuteClick(click)) {
+      this.audio.toggleMute();
+      return;
+    }
+
+    // Menu button
+    if (this.checkButtonClick(click, this.renderer.getMpGameOverMenuBounds())) {
+      this.audio.play('click');
+      this.cleanupMultiplayer();
+      this.state = 'MENU';
+      this.renderer.initParticles(this.theme);
+    }
+  }
+
+  renderMpGameOver(ctx) {
+    this.renderer.drawBackground(ctx, this.theme);
+    this.renderer.drawParticles(ctx, this.theme);
+    this.renderer.drawGround(ctx, this.theme, this.groundOffset);
+    this.renderer.drawMpGameOver(ctx, this.theme, this.mpPlacements, auth.getCurrentUser()?.uid);
+    this.renderer.drawMuteButton(ctx, this.audio.isMuted());
+  }
+
+  cleanupMultiplayer() {
+    // Leave lobby first (needs currentLobbyCode), then cleanup listeners
+    lobby.leaveLobby();
+    if (this.mpSession) {
+      this.mpSession.cleanup();
+      this.mpSession = null;
+    }
+    this.mpPlayers = {};
+    this.mpMeta = null;
+    this.mpIsHost = false;
+    this.mpLocalAlive = true;
+    this.mpPlacements = [];
   }
 }

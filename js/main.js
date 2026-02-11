@@ -2,6 +2,7 @@ import { Game } from './game.js';
 import { InputHandler } from './input.js';
 import { init as initAuth } from './auth.js';
 import { init as initLeaderboard } from './leaderboard.js';
+import { init as initLobby } from './lobby.js';
 
 // TODO: Replace with your Firebase project config
 const firebaseConfig = {
@@ -17,6 +18,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 initAuth();
 initLeaderboard();
+initLobby();
 
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');

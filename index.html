@@ -36,6 +36,18 @@
         <button id="account-close" class="btn-secondary">Close</button>
       </div>
     </div>
+
+    <div id="lobby-overlay" class="hidden">
+      <div class="overlay-card">
+        <h2 id="lobby-title">Multiplayer</h2>
+        <p id="lobby-error" class="error-text"></p>
+        <button id="lobby-create" class="btn-primary">Create Lobby</button>
+        <div class="lobby-divider">or join a lobby</div>
+        <input type="text" id="lobby-code-input" class="overlay-input lobby-code" maxlength="6" placeholder="ENTER CODE" autocomplete="off">
+        <button id="lobby-join" class="btn-primary">Join Lobby</button>
+        <button id="lobby-cancel" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>

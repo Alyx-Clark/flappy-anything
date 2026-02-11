@@ -283,8 +283,9 @@ export class Renderer {
       this.drawThemeCard(ctx, theme, startX, y, cardWidth, cardHeight, customization);
     }
 
-    // Bottom buttons (three side by side)
+    // Bottom buttons (2x2 grid)
     this.drawMenuButton(ctx, this.getCustomizeButtonBounds(), 'Customize');
+    this.drawMenuButton(ctx, this.getMultiplayerButtonBounds(), 'Multiplayer');
     this.drawMenuButton(ctx, this.getLeaderboardButtonBounds(), 'Leaderboard');
 
     // Auth button — show truncated display name when signed in
@@ -313,15 +314,19 @@ export class Renderer {
   }
 
   getCustomizeButtonBounds() {
-    return { x: 12, y: 502, w: 120, h: 32 };
+    return { x: 30, y: 496, w: 160, h: 32 };
+  }
+
+  getMultiplayerButtonBounds() {
+    return { x: 210, y: 496, w: 160, h: 32 };
   }
 
   getLeaderboardButtonBounds() {
-    return { x: 140, y: 502, w: 120, h: 32 };
+    return { x: 30, y: 534, w: 160, h: 32 };
   }
 
   getAuthButtonBounds() {
-    return { x: 268, y: 502, w: 120, h: 32 };
+    return { x: 210, y: 534, w: 160, h: 32 };
   }
 
   drawThemeCard(ctx, theme, x, y, w, h, customization) {
@@ -1112,6 +1117,375 @@ export class Renderer {
       ctx.arc(cx + 3, cy, 6.5, -Math.PI / 4, Math.PI / 4);
       ctx.stroke();
     }
+
+    ctx.restore();
+  }
+
+  // --- Multiplayer: Lobby Screen ---
+
+  getMpLobbyStartBounds() {
+    return { x: (this.width - 160) / 2, y: 470, w: 160, h: 36 };
+  }
+
+  getMpLobbyLeaveBounds() {
+    return { x: (this.width - 120) / 2, y: 516, w: 120, h: 32 };
+  }
+
+  getMpLobbyThemeLeftBounds() {
+    return { x: 40, y: 118, w: 30, h: 30 };
+  }
+
+  getMpLobbyThemeRightBounds() {
+    return { x: this.width - 70, y: 118, w: 30, h: 30 };
+  }
+
+  drawMpLobby(ctx, theme, code, players, isHost, themeId) {
+    // Dark overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.fillRect(0, 0, this.width, this.height);
+
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Title
+    ctx.font = 'bold 26px Arial, sans-serif';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 4;
+    ctx.lineJoin = 'round';
+    ctx.strokeText('MULTIPLAYER', this.width / 2, 40);
+    ctx.fillStyle = '#FFF';
+    ctx.fillText('MULTIPLAYER', this.width / 2, 40);
+
+    // Lobby code
+    ctx.font = 'bold 14px Arial, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillText('LOBBY CODE', this.width / 2, 72);
+
+    // Draw code with manual letter spacing
+    ctx.font = 'bold 36px monospace';
+    ctx.fillStyle = '#F39C12';
+    const codeStr = code || '------';
+    const charW = 24;
+    const codeStartX = this.width / 2 - (codeStr.length * charW) / 2 + charW / 2;
+    for (let i = 0; i < codeStr.length; i++) {
+      ctx.fillText(codeStr[i], codeStartX + i * charW, 100);
+    }
+
+    // Theme selector (host only)
+    ctx.font = 'bold 16px Arial, sans-serif';
+    ctx.fillStyle = '#FFF';
+    ctx.fillText(theme.name, this.width / 2, 134);
+
+    if (isHost) {
+      // Arrow buttons
+      const leftB = this.getMpLobbyThemeLeftBounds();
+      const rightB = this.getMpLobbyThemeRightBounds();
+
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      ctx.beginPath();
+      ctx.roundRect(leftB.x, leftB.y, leftB.w, leftB.h, 6);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.roundRect(rightB.x, rightB.y, rightB.w, rightB.h, 6);
+      ctx.fill();
+
+      ctx.font = 'bold 20px Arial, sans-serif';
+      ctx.fillStyle = '#FFF';
+      ctx.fillText('\u25C0', leftB.x + leftB.w / 2, leftB.y + leftB.h / 2);
+      ctx.fillText('\u25B6', rightB.x + rightB.w / 2, rightB.y + rightB.h / 2);
+    }
+
+    // Player list panel
+    const panelW = 300;
+    const panelH = 300;
+    const panelX = (this.width - panelW) / 2;
+    const panelY = 160;
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.beginPath();
+    ctx.roundRect(panelX, panelY, panelW, panelH, 12);
+    ctx.fill();
+
+    // Player list header
+    ctx.font = 'bold 13px Arial, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillText('Players', this.width / 2, panelY + 20);
+
+    // Players
+    const uids = Object.keys(players);
+    const rowH = 32;
+    const startY = panelY + 44;
+
+    for (let i = 0; i < uids.length; i++) {
+      const uid = uids[i];
+      const p = players[uid];
+      const rowY = startY + i * rowH;
+
+      // Connection indicator
+      ctx.fillStyle = p.connected ? '#2ECC71' : '#E74C3C';
+      ctx.beginPath();
+      ctx.arc(panelX + 20, rowY, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Name
+      ctx.font = '15px Arial, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#FFF';
+      const label = p.displayName || 'Player';
+      ctx.fillText(label, panelX + 32, rowY + 1);
+
+      // Host badge
+      if (isHost && i === 0) {
+        // First player listed — check if they're the actual host
+      }
+
+      ctx.textAlign = 'center';
+    }
+
+    // Player count
+    ctx.font = '12px Arial, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillText(`${uids.length}/8 players`, this.width / 2, panelY + panelH - 16);
+
+    // Start button (host only)
+    if (isHost) {
+      const btn = this.getMpLobbyStartBounds();
+      const canStart = uids.length >= 2;
+      ctx.fillStyle = canStart ? '#F39C12' : 'rgba(243,156,18,0.3)';
+      ctx.beginPath();
+      ctx.roundRect(btn.x, btn.y, btn.w, btn.h, 10);
+      ctx.fill();
+      ctx.font = 'bold 16px Arial, sans-serif';
+      ctx.fillStyle = canStart ? '#000' : 'rgba(0,0,0,0.4)';
+      ctx.fillText('Start Game', btn.x + btn.w / 2, btn.y + btn.h / 2);
+    } else {
+      // Waiting for host message
+      const alpha = 0.5 + 0.5 * Math.sin(performance.now() * 0.003);
+      ctx.globalAlpha = alpha;
+      ctx.font = '15px Arial, sans-serif';
+      ctx.fillStyle = '#FFF';
+      ctx.fillText('Waiting for host to start...', this.width / 2, 486);
+      ctx.globalAlpha = 1;
+    }
+
+    // Leave button
+    const leave = this.getMpLobbyLeaveBounds();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.beginPath();
+    ctx.roundRect(leave.x, leave.y, leave.w, leave.h, 8);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.font = 'bold 14px Arial, sans-serif';
+    ctx.fillStyle = '#FFF';
+    ctx.fillText('Leave', leave.x + leave.w / 2, leave.y + leave.h / 2);
+
+    ctx.restore();
+  }
+
+  // --- Multiplayer: Countdown ---
+
+  drawMpCountdown(ctx, theme, count) {
+    // Semi-transparent overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.fillRect(0, 0, this.width, this.height);
+
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const text = count > 0 ? String(count) : 'GO!';
+    const size = count > 0 ? 80 : 60;
+
+    ctx.font = `bold ${size}px Arial, sans-serif`;
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 8;
+    ctx.lineJoin = 'round';
+    ctx.strokeText(text, this.width / 2, this.height / 2);
+
+    ctx.fillStyle = count > 0 ? '#FFF' : '#2ECC71';
+    ctx.fillText(text, this.width / 2, this.height / 2);
+
+    ctx.restore();
+  }
+
+  // --- Multiplayer: HUD ---
+
+  drawMpHud(ctx, players, localUid) {
+    const uids = Object.keys(players);
+    const perRow = uids.length > 4 ? Math.ceil(uids.length / 2) : uids.length;
+    const rows = uids.length > 4 ? 2 : 1;
+    const itemW = 90;
+    const itemH = 18;
+    const gap = 4;
+    const totalW = perRow * itemW + (perRow - 1) * gap;
+    const startX = (this.width - totalW) / 2;
+
+    ctx.save();
+    for (let i = 0; i < uids.length; i++) {
+      const uid = uids[i];
+      const p = players[uid];
+      const row = Math.floor(i / perRow);
+      const col = i % perRow;
+      const x = startX + col * (itemW + gap);
+      const y = 8 + row * (itemH + 3);
+
+      // Background
+      const isLocal = uid === localUid;
+      ctx.fillStyle = isLocal ? 'rgba(243,156,18,0.3)' : 'rgba(0,0,0,0.35)';
+      ctx.beginPath();
+      ctx.roundRect(x, y, itemW, itemH, 4);
+      ctx.fill();
+
+      // Alive/dead dot
+      ctx.fillStyle = p.alive ? '#2ECC71' : '#E74C3C';
+      ctx.beginPath();
+      ctx.arc(x + 8, y + itemH / 2, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Name (truncated)
+      ctx.font = '10px Arial, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = p.alive ? '#FFF' : 'rgba(255,255,255,0.4)';
+      const name = (p.displayName || '?').substring(0, 6);
+      ctx.fillText(name, x + 15, y + itemH / 2);
+
+      // Score
+      ctx.textAlign = 'right';
+      ctx.font = 'bold 10px Arial, sans-serif';
+      ctx.fillText(p.score || 0, x + itemW - 5, y + itemH / 2);
+    }
+    ctx.restore();
+  }
+
+  // --- Multiplayer: Ghost Player ---
+
+  drawGhostPlayer(ctx, bird, theme, customization, displayName) {
+    ctx.save();
+    ctx.globalAlpha = 0.4;
+    bird.draw(ctx, theme, customization);
+    ctx.globalAlpha = 1;
+
+    // Name label above
+    if (displayName) {
+      ctx.save();
+      ctx.font = 'bold 10px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      ctx.lineWidth = 2;
+      ctx.lineJoin = 'round';
+      ctx.strokeText(displayName, bird.x, bird.y - 20);
+      ctx.fillText(displayName, bird.x, bird.y - 20);
+      ctx.restore();
+    }
+
+    ctx.restore();
+  }
+
+  // --- Multiplayer: Game Over ---
+
+  getMpGameOverMenuBounds() {
+    return { x: (this.width - 160) / 2, y: this.height / 2 + 140, w: 160, h: 40 };
+  }
+
+  drawMpGameOver(ctx, theme, placements, localUid) {
+    // Dark overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.fillRect(0, 0, this.width, this.height);
+
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Title
+    ctx.font = 'bold 32px Arial, sans-serif';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 5;
+    ctx.lineJoin = 'round';
+    ctx.strokeText('GAME OVER', this.width / 2, 60);
+    ctx.fillStyle = theme.ui.scoreColor;
+    ctx.fillText('GAME OVER', this.width / 2, 60);
+
+    // Results panel
+    const panelW = 300;
+    const panelH = 320;
+    const panelX = (this.width - panelW) / 2;
+    const panelY = 90;
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.beginPath();
+    ctx.roundRect(panelX, panelY, panelW, panelH, 12);
+    ctx.fill();
+
+    // Placements
+    const medalColors = ['#FFD700', '#C0C0C0', '#CD7F32'];
+    const rowH = 36;
+    const startY = panelY + 30;
+
+    for (let i = 0; i < placements.length; i++) {
+      const p = placements[i];
+      const rowY = startY + i * rowH;
+      const isLocal = p.uid === localUid;
+
+      if (isLocal) {
+        ctx.fillStyle = 'rgba(243, 156, 18, 0.15)';
+        ctx.beginPath();
+        ctx.roundRect(panelX + 8, rowY - rowH / 2 + 4, panelW - 16, rowH - 4, 6);
+        ctx.fill();
+      }
+
+      // Rank
+      ctx.textAlign = 'left';
+      ctx.font = 'bold 16px Arial, sans-serif';
+      ctx.fillStyle = i < 3 ? medalColors[i] : 'rgba(255,255,255,0.7)';
+      ctx.fillText(`#${i + 1}`, panelX + 16, rowY + 2);
+
+      // Crown for top 3
+      if (i < 3) {
+        this.drawCrown(ctx, panelX + 50, rowY + 2, medalColors[i]);
+      }
+
+      // Name
+      const nameX = panelX + (i < 3 ? 65 : 50);
+      ctx.font = isLocal ? 'bold 15px Arial, sans-serif' : '15px Arial, sans-serif';
+      ctx.fillStyle = isLocal ? '#F39C12' : '#FFF';
+      ctx.fillText(p.displayName || 'Player', nameX, rowY + 2);
+
+      // Score
+      ctx.textAlign = 'right';
+      ctx.font = 'bold 15px Arial, sans-serif';
+      ctx.fillText(p.score || 0, panelX + panelW - 16, rowY + 2);
+
+      ctx.textAlign = 'center';
+    }
+
+    // Winner announcement
+    if (placements.length > 0) {
+      const winner = placements[0];
+      const isLocalWin = winner.uid === localUid;
+      ctx.font = 'bold 18px Arial, sans-serif';
+      ctx.fillStyle = '#FFD700';
+      const winText = isLocalWin ? 'You Win!' : `${winner.displayName} Wins!`;
+      ctx.fillText(winText, this.width / 2, panelY + panelH - 20);
+    }
+
+    // Menu button
+    const btn = this.getMpGameOverMenuBounds();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.beginPath();
+    ctx.roundRect(btn.x, btn.y, btn.w, btn.h, 10);
+    ctx.fill();
+    ctx.strokeStyle = theme.ui.menuHighlight;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.font = 'bold 18px Arial, sans-serif';
+    ctx.fillStyle = '#FFF';
+    ctx.fillText('Menu', btn.x + btn.w / 2, btn.y + btn.h / 2);
 
     ctx.restore();
   }
