@@ -8,6 +8,7 @@ import { init as initLobby } from './lobby.js';
 const firebaseConfig = {
   apiKey: "AIzaSyAIMw5GMh44u9BkHs5j4CTH0mhfvmcwyjw",
   authDomain: "flappy-anything.firebaseapp.com",
+  databaseURL: "https://flappy-anything-default-rtdb.firebaseio.com",
   projectId: "flappy-anything",
   storageBucket: "flappy-anything.firebasestorage.app",
   messagingSenderId: "472537046550",
