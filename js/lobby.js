@@ -3,6 +3,7 @@ import * as auth from './auth.js';
 let db = null;
 let currentLobbyCode = null;
 let currentLobbyListeners = [];
+let flapListeners = [];
 
 // Characters that avoid ambiguity (no 0/O, 1/I/L)
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -216,7 +217,7 @@ export function onRemoteFlaps(uid, callback) {
   const cb = flapsRef.on('child_added', (snap) => {
     callback(snap.val());
   });
-  currentLobbyListeners.push({ ref: flapsRef, event: 'child_added', cb });
+  flapListeners.push({ ref: flapsRef, event: 'child_added', cb });
 }
 
 function cleanupListeners() {
@@ -226,9 +227,42 @@ function cleanupListeners() {
   currentLobbyListeners = [];
 }
 
+export function cleanupFlapListeners() {
+  for (const { ref, event, cb } of flapListeners) {
+    ref.off(event, cb);
+  }
+  flapListeners = [];
+}
+
 export function cleanup() {
   cleanupListeners();
+  cleanupFlapListeners();
   currentLobbyCode = null;
+}
+
+export async function resetForRematch() {
+  if (!db || !currentLobbyCode || !auth.isSignedIn()) return;
+  const user = auth.getCurrentUser();
+  const playerRef = lobbyRef(currentLobbyCode).child('players/' + user.uid);
+  await playerRef.update({
+    alive: true,
+    score: 0,
+    y: 300,
+    velocity: 0,
+    rotation: 0,
+    flapSeq: 0,
+  });
+  await playerRef.child('flaps').remove();
+}
+
+export async function resetLobbyForRematch() {
+  if (!db || !currentLobbyCode) return;
+  const seed = Math.floor(Math.random() * 2147483647);
+  await lobbyRef(currentLobbyCode).child('meta').update({
+    status: 'waiting',
+    startTime: null,
+    seed: seed,
+  });
 }
 
 export function getCurrentCode() {

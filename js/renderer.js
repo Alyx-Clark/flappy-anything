@@ -1389,8 +1389,12 @@ export class Renderer {
 
   // --- Multiplayer: Game Over ---
 
+  getMpGameOverRematchBounds() {
+    return { x: (this.width - 160) / 2, y: 425, w: 160, h: 40 };
+  }
+
   getMpGameOverMenuBounds() {
-    return { x: (this.width - 160) / 2, y: this.height / 2 + 140, w: 160, h: 40 };
+    return { x: (this.width - 120) / 2, y: 475, w: 120, h: 36 };
   }
 
   drawMpGameOver(ctx, theme, placements, localUid) {
@@ -1474,16 +1478,26 @@ export class Renderer {
       ctx.fillText(winText, this.width / 2, panelY + panelH - 20);
     }
 
-    // Menu button
-    const btn = this.getMpGameOverMenuBounds();
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    // Rematch button (prominent)
+    const rematch = this.getMpGameOverRematchBounds();
+    ctx.fillStyle = '#F39C12';
     ctx.beginPath();
-    ctx.roundRect(btn.x, btn.y, btn.w, btn.h, 10);
+    ctx.roundRect(rematch.x, rematch.y, rematch.w, rematch.h, 10);
     ctx.fill();
-    ctx.strokeStyle = theme.ui.menuHighlight;
-    ctx.lineWidth = 2;
-    ctx.stroke();
     ctx.font = 'bold 18px Arial, sans-serif';
+    ctx.fillStyle = '#000';
+    ctx.fillText('Rematch', rematch.x + rematch.w / 2, rematch.y + rematch.h / 2);
+
+    // Menu button (smaller, subdued)
+    const btn = this.getMpGameOverMenuBounds();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.beginPath();
+    ctx.roundRect(btn.x, btn.y, btn.w, btn.h, 8);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.font = 'bold 15px Arial, sans-serif';
     ctx.fillStyle = '#FFF';
     ctx.fillText('Menu', btn.x + btn.w / 2, btn.y + btn.h / 2);
 

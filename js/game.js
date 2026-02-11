@@ -864,6 +864,10 @@ export class Game {
           if (data.status === 'countdown' && this.state === 'MP_LOBBY') {
             this.startMpCountdown(data.startTime);
           }
+          // Auto-return to lobby when host initiates rematch
+          if (data.status === 'waiting' && (this.state === 'MP_GAME_OVER' || this.state === 'MP_PLAYING')) {
+            this.returnToMpLobby();
+          }
         }
       } else if (type === 'players') {
         this.mpPlayers = data || {};
@@ -1134,12 +1138,45 @@ export class Game {
       return;
     }
 
-    // Menu button
+    // Rematch button — return to same lobby
+    if (this.checkButtonClick(click, this.renderer.getMpGameOverRematchBounds())) {
+      this.audio.play('click');
+      this.returnToMpLobby();
+      return;
+    }
+
+    // Menu button — leave lobby entirely
     if (this.checkButtonClick(click, this.renderer.getMpGameOverMenuBounds())) {
       this.audio.play('click');
       this.cleanupMultiplayer();
       this.state = 'MENU';
       this.renderer.initParticles(this.theme);
+    }
+  }
+
+  async returnToMpLobby() {
+    // Clean up multiplayer session (flap listeners + remote players) but keep lobby connection
+    if (this.mpSession) {
+      this.mpSession.cleanup();
+      this.mpSession = null;
+    }
+
+    // Reset local game state
+    this.mpLocalAlive = true;
+    this.mpPlacements = [];
+    this.pipes = [];
+    this.bird = null;
+    this.score = 0;
+
+    // Set state immediately to prevent re-entrant callbacks from onLobbyChange
+    this.state = 'MP_LOBBY';
+
+    // Reset own player data in Firebase
+    await lobby.resetForRematch();
+
+    // Host resets lobby status to waiting (with new seed)
+    if (this.mpIsHost) {
+      await lobby.resetLobbyForRematch();
     }
   }
 
@@ -1152,12 +1189,14 @@ export class Game {
   }
 
   cleanupMultiplayer() {
-    // Leave lobby first (needs currentLobbyCode), then cleanup listeners
+    // Leave lobby first (needs currentLobbyCode), then cleanup session
     lobby.leaveLobby();
     if (this.mpSession) {
       this.mpSession.cleanup();
       this.mpSession = null;
     }
+    // Clean up lobby meta/players listeners (leaveLobby handles its own, but ensure full cleanup)
+    lobby.cleanup();
     this.mpPlayers = {};
     this.mpMeta = null;
     this.mpIsHost = false;

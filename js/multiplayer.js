@@ -161,6 +161,6 @@ export class MultiplayerSession {
 
   cleanup() {
     this.remotePlayers = {};
-    lobby.cleanup();
+    lobby.cleanupFlapListeners();
   }
 }
