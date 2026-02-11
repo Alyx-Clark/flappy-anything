@@ -18,8 +18,8 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 initAuth();
-initLeaderboard();
-initLobby();
+try { initLeaderboard(); } catch (e) { console.warn('Leaderboard init failed:', e); }
+try { initLobby(); } catch (e) { console.warn('Lobby init failed:', e); }
 
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
