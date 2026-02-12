@@ -53,6 +53,11 @@ export function saveScore(themeId, score) {
   }
 }
 
+export function clearScores() {
+  writeToLocalStorage({});
+  writeToCookie({});
+}
+
 export function getHighScore(themeId) {
   const scores = loadAllScores();
   return scores[themeId] || 0;

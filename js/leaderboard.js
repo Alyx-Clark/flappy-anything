@@ -1,5 +1,5 @@
 import * as auth from './auth.js';
-import { saveScore, loadAllScores } from './storage.js';
+import { saveScore, loadAllScores, clearScores } from './storage.js';
 
 const PLAYER_NAME_KEY = 'flappy_player_name';
 
@@ -15,7 +15,11 @@ export function getStoredLocalName() {
   return localStorage.getItem(PLAYER_NAME_KEY);
 }
 
-// --- Firebase operations ---
+// --- Score management ---
+
+export function clearLocalScores() {
+  clearScores();
+}
 
 export async function submitScore(themeId, score) {
   if (!db) return;
@@ -54,6 +58,8 @@ export async function syncScores() {
   if (!auth.isSignedIn()) return;
 
   const user = auth.getCurrentUser();
+  // Skip if displayName isn't set yet (e.g. during sign-up before updateProfile)
+  if (!user.displayName) return;
   const ref = db.ref('leaderboard/' + user.uid);
   const snapshot = await ref.once('value');
   const existing = snapshot.val() || {};

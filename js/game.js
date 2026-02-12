@@ -63,11 +63,12 @@ export class Game {
     this.setupAuthUI();
     this.setupLobbyUI();
 
-    // Sync local/remote scores and refresh crown when signing in
+    // Sync scores on sign-in, clear local scores on sign-out
     auth.onAuthChange((user) => {
       if (user) {
         leaderboard.syncScores().then(() => this.refreshCrown());
       } else {
+        leaderboard.clearLocalScores();
         this.refreshCrown();
       }
     });
