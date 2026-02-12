@@ -36,7 +36,7 @@ function readFromCookie() {
   }
 }
 
-function loadAllScores() {
+export function loadAllScores() {
   let data = readFromLocalStorage();
   if (!data) {
     data = readFromCookie();

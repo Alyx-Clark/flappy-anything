@@ -63,15 +63,10 @@ export class Game {
     this.setupAuthUI();
     this.setupLobbyUI();
 
-    // Sync local scores and refresh crown when signing in
+    // Sync local/remote scores and refresh crown when signing in
     auth.onAuthChange((user) => {
       if (user) {
-        const best = getBestScore();
-        if (best > 0) {
-          leaderboard.submitScore(best).then(() => this.refreshCrown());
-        } else {
-          this.refreshCrown();
-        }
+        leaderboard.syncScores().then(() => this.refreshCrown());
       } else {
         this.refreshCrown();
       }
@@ -629,7 +624,7 @@ export class Game {
     this.state = 'GAME_OVER';
 
     if (auth.isSignedIn()) {
-      leaderboard.submitScore(this.score).then(() => this.refreshCrown());
+      leaderboard.submitScore(this.theme.id, this.score).then(() => this.refreshCrown());
     }
   }
 

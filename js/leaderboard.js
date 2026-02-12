@@ -1,4 +1,5 @@
 import * as auth from './auth.js';
+import { saveScore, loadAllScores } from './storage.js';
 
 const PLAYER_NAME_KEY = 'flappy_player_name';
 
@@ -16,22 +17,86 @@ export function getStoredLocalName() {
 
 // --- Firebase operations ---
 
-export async function submitScore(score) {
+export async function submitScore(themeId, score) {
   if (!db) return;
   if (!auth.isSignedIn()) return;
 
   const user = auth.getCurrentUser();
   const ref = db.ref('leaderboard/' + user.uid);
   const snapshot = await ref.once('value');
-  const existing = snapshot.val();
+  const existing = snapshot.val() || {};
 
-  if (!existing || score > existing.score) {
+  const existingScores = existing.scores || {};
+  const oldThemeScore = existingScores[themeId] || 0;
+
+  if (score <= oldThemeScore) return;
+
+  // Update this theme's score
+  existingScores[themeId] = score;
+
+  // Compute best across all themes
+  let best = 0;
+  for (const id in existingScores) {
+    if (existingScores[id] > best) best = existingScores[id];
+  }
+
+  await ref.set({
+    displayName: user.displayName,
+    score: best,
+    timestamp: Date.now(),
+    scores: existingScores,
+  });
+}
+
+// Sync all local theme scores up to Firebase and pull remote scores down to localStorage
+export async function syncScores() {
+  if (!db) return;
+  if (!auth.isSignedIn()) return;
+
+  const user = auth.getCurrentUser();
+  const ref = db.ref('leaderboard/' + user.uid);
+  const snapshot = await ref.once('value');
+  const existing = snapshot.val() || {};
+
+  const remoteScores = existing.scores || {};
+  const localScores = loadAllScores();
+
+  // Merge: take the max of local and remote for each theme
+  const merged = { ...remoteScores };
+  let changed = false;
+  for (const themeId in localScores) {
+    const local = localScores[themeId];
+    const remote = merged[themeId] || 0;
+    if (local > remote) {
+      merged[themeId] = local;
+      changed = true;
+    }
+  }
+
+  // Sync remote scores down to localStorage
+  for (const themeId in merged) {
+    saveScore(themeId, merged[themeId]);
+  }
+
+  // Preserve the existing top-level score if it's higher than anything in the
+  // merged per-theme map (handles migration from old format without a scores map)
+  const existingBest = existing.score || 0;
+  let best = existingBest;
+  for (const id in merged) {
+    if (merged[id] > best) best = merged[id];
+  }
+
+  // Push merged scores up if anything changed
+  if (changed || best !== existingBest || !existing.scores) {
     await ref.set({
       displayName: user.displayName,
-      score: score,
+      score: best,
       timestamp: Date.now(),
+      scores: merged,
     });
   }
+
+  return merged;
 }
 
 export async function fetchTopScores(limit = 50) {
@@ -91,10 +156,13 @@ export async function migrateNameEntryToUid(uid, displayName) {
   // Keep the higher score
   const bestScore = newEntry ? Math.max(oldEntry.score, newEntry.score) : oldEntry.score;
 
+  const existingScores = (newEntry && newEntry.scores) || {};
+
   await newRef.set({
     displayName: displayName,
     score: bestScore,
     timestamp: Date.now(),
+    scores: existingScores,
   });
 
   // Remove old name-keyed entry
