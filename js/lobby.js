@@ -87,6 +87,7 @@ async function joinLobbyInternal(code, user, customization) {
     rotation: 0,
     connected: true,
     flapSeq: 0,
+    timestamp: firebase.database.ServerValue.TIMESTAMP,
   });
 
   // Set up disconnect detection
@@ -169,6 +170,7 @@ export function reportState(y, velocity, rotation, score) {
   const user = auth.getCurrentUser();
   lobbyRef(currentLobbyCode).child('players/' + user.uid).update({
     y, velocity, rotation, score,
+    timestamp: firebase.database.ServerValue.TIMESTAMP,
   });
 }
 
@@ -251,6 +253,7 @@ export async function resetForRematch() {
     velocity: 0,
     rotation: 0,
     flapSeq: 0,
+    timestamp: firebase.database.ServerValue.TIMESTAMP,
   });
   await playerRef.child('flaps').remove();
 }

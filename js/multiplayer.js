@@ -3,18 +3,19 @@ import { SeededRandom } from './prng.js';
 import * as lobby from './lobby.js';
 import * as auth from './auth.js';
 
-const STATE_PUSH_INTERVAL = 200; // ms — push y/vel/rot at 5 Hz
-const LERP_DURATION = 100; // ms — smooth remote drift over 100ms
+const STATE_PUSH_INTERVAL = 50; // ms — push y/vel/rot at 20 Hz
+const INTERPOLATION_DELAY = 100; // ms — buffer for smooth interpolation
 
 export class MultiplayerSession {
   constructor(seed, localUid) {
     this.rng = new SeededRandom(seed);
     this.localUid = localUid;
-    this.remotePlayers = {}; // uid -> { bird, displayName, customization, alive, score, targetY, targetVel, targetRot, lerpStart }
+    this.remotePlayers = {}; // uid -> { bird, displayName, customization, alive, score, stateBuffer, lastFlapSeq }
     this.gameStartTime = null;
     this.lastStatePush = 0;
     this.spectating = false;
     this.listeners = [];
+    this.serverTimeOffset = 0; // local time - server time
   }
 
   setGameStartTime(t) {
@@ -37,10 +38,8 @@ export class MultiplayerSession {
         customization: p.customization ? p.customization[themeId] || null : null,
         alive: true,
         score: p.score || 0,
-        targetY: null,
-        targetVel: null,
-        targetRot: null,
-        lerpStart: 0,
+        stateBuffer: [], // [{ timestamp, y, velocity, rotation }]
+        lastFlapSeq: 0,
       };
 
       // Listen for flap events from this remote player
@@ -56,8 +55,15 @@ export class MultiplayerSession {
   // Called each frame with latest player data from Firebase
   updateFromFirebase(players) {
     for (const uid of Object.keys(players)) {
-      if (uid === this.localUid) continue;
       const p = players[uid];
+
+      // Calibrate server time from our own state echo
+      if (uid === this.localUid && p.timestamp !== undefined) {
+        this.calibrateServerTime(p.timestamp);
+        continue;
+      }
+
+      if (uid === this.localUid) continue;
 
       if (!this.remotePlayers[uid]) continue;
 
@@ -65,12 +71,23 @@ export class MultiplayerSession {
       rp.alive = p.alive !== false;
       rp.score = p.score || 0;
 
-      // Set lerp targets from state snapshots
-      if (p.y !== undefined && p.y !== rp.targetY) {
-        rp.targetY = p.y;
-        rp.targetVel = p.velocity || 0;
-        rp.targetRot = p.rotation || 0;
-        rp.lerpStart = performance.now();
+      // Buffer state snapshots with timestamps
+      if (p.y !== undefined && p.timestamp !== undefined) {
+        // Only add if this is new data (check if last buffered state differs)
+        const lastState = rp.stateBuffer[rp.stateBuffer.length - 1];
+        if (!lastState || lastState.timestamp !== p.timestamp) {
+          rp.stateBuffer.push({
+            timestamp: p.timestamp,
+            y: p.y,
+            velocity: p.velocity || 0,
+            rotation: p.rotation || 0,
+          });
+
+          // Keep buffer size reasonable (max 1 second of data at 20Hz)
+          if (rp.stateBuffer.length > 20) {
+            rp.stateBuffer.shift();
+          }
+        }
       }
 
       // Handle disconnect
@@ -87,32 +104,85 @@ export class MultiplayerSession {
     }
   }
 
-  // Run physics + lerp for all remote birds
+  // Interpolate remote birds between buffered states
   updateRemoteBirds(dt) {
-    const now = performance.now();
+    const renderTime = this.getServerTime() - INTERPOLATION_DELAY;
 
     for (const uid of Object.keys(this.remotePlayers)) {
       const rp = this.remotePlayers[uid];
       if (!rp.alive) continue;
 
-      // Run normal physics
-      rp.bird.update(dt);
+      // Find the two states we should interpolate between
+      const buffer = rp.stateBuffer;
+      if (buffer.length === 0) {
+        // No data yet, run local physics as fallback
+        rp.bird.update(dt);
+        continue;
+      }
 
-      // Lerp toward snapshot target
-      if (rp.targetY !== null) {
-        const elapsed = now - rp.lerpStart;
-        const t = Math.min(elapsed / LERP_DURATION, 1);
+      if (buffer.length === 1) {
+        // Only one state, snap to it
+        const state = buffer[0];
+        rp.bird.y = state.y;
+        rp.bird.velocity = state.velocity;
+        rp.bird.rotation = state.rotation;
+        continue;
+      }
 
-        if (t < 1) {
-          // Blend toward target
-          rp.bird.y += (rp.targetY - rp.bird.y) * t * 0.3;
-          rp.bird.velocity += (rp.targetVel - rp.bird.velocity) * t * 0.3;
+      // Find states before and after render time
+      let before = null;
+      let after = null;
+
+      for (let i = 0; i < buffer.length - 1; i++) {
+        if (buffer[i].timestamp <= renderTime && buffer[i + 1].timestamp >= renderTime) {
+          before = buffer[i];
+          after = buffer[i + 1];
+          break;
         }
       }
+
+      if (!before || !after) {
+        // Render time is outside buffer range, use closest state
+        if (renderTime < buffer[0].timestamp) {
+          // Too far behind, snap to oldest
+          const state = buffer[0];
+          rp.bird.y = state.y;
+          rp.bird.velocity = state.velocity;
+          rp.bird.rotation = state.rotation;
+        } else {
+          // Ahead of buffer, snap to newest
+          const state = buffer[buffer.length - 1];
+          rp.bird.y = state.y;
+          rp.bird.velocity = state.velocity;
+          rp.bird.rotation = state.rotation;
+        }
+        continue;
+      }
+
+      // Interpolate between before and after
+      const totalTime = after.timestamp - before.timestamp;
+      const elapsed = renderTime - before.timestamp;
+      const t = totalTime > 0 ? elapsed / totalTime : 0;
+
+      rp.bird.y = before.y + (after.y - before.y) * t;
+      rp.bird.velocity = before.velocity + (after.velocity - before.velocity) * t;
+      rp.bird.rotation = before.rotation + (after.rotation - before.rotation) * t;
     }
   }
 
-  // Push local state to Firebase at 5 Hz
+  // Calibrate server time offset from our own state echo
+  calibrateServerTime(serverTimestamp) {
+    if (this.serverTimeOffset === 0 && serverTimestamp) {
+      this.serverTimeOffset = Date.now() - serverTimestamp;
+    }
+  }
+
+  // Get estimated server time
+  getServerTime() {
+    return Date.now() - this.serverTimeOffset;
+  }
+
+  // Push local state to Firebase at 20 Hz
   pushLocalState(bird, score) {
     const now = Date.now();
     if (now - this.lastStatePush < STATE_PUSH_INTERVAL) return;

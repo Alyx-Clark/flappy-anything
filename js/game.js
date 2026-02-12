@@ -1029,7 +1029,7 @@ export class Game {
 
       this.bird.update(dt);
 
-      // Push state snapshot at 5 Hz
+      // Push state snapshot at 20 Hz
       this.mpSession.pushLocalState(this.bird, this.score);
 
       // Collision check
